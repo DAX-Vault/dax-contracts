@@ -116,8 +116,9 @@ describe("DAX Ecosystem Unit Tests", function () {
       await amm.connect(owner).removeLiquidity(await tokenA.getAddress(), await tokenB.getAddress(), halfShares, 0n, 0n, Math.floor(Date.now() / 1000) + 3600);
 
       const pool = await amm.getPool(await tokenA.getAddress(), await tokenB.getAddress());
-      expect(pool.reserve0).to.equal(ethers.parseEther("50"));
-      expect(pool.reserve1).to.equal(ethers.parseEther("50"));
+      // Account for locked 1000 MINIMUM_LIQUIDITY shares (half of which represents 500 wei in reserves)
+      expect(pool.reserve0).to.equal(ethers.parseEther("50") + 500n);
+      expect(pool.reserve1).to.equal(ethers.parseEther("50") + 500n);
     });
   });
 

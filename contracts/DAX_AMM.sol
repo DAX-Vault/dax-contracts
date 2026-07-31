@@ -117,7 +117,11 @@ contract DAX_AMM is ReentrancyGuard {
             amount0 = amount0Desired;
             amount1 = amount1Desired;
             // Use geometric mean for initial shares calculation
-            shares = _sqrt(amount0 * amount1);
+            uint256 rawShares = _sqrt(amount0 * amount1);
+            require(rawShares > 1000, "Initial deposit too small");
+            shares = rawShares - 1000;
+            // Permanently lock the first 1000 shares (analogous to Uniswap V2 MINIMUM_LIQUIDITY)
+            pool.totalLPShares += 1000;
         } else {
             // Constant product ratio matching
             uint256 amount1Optimal = (amount0Desired * pool.reserve1) / pool.reserve0;
