@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="dax_logo.png" alt="DAX Logo" width="180" />
+  <img src="dax_logo.png" alt="DAXVault Logo" width="180" />
 </p>
 
-<h1 align="center">DAX — Trustless P2P Crypto Exchange</h1>
+<h1 align="center">DAXVault — Trustless P2P Crypto Exchange</h1>
 
 <p align="center">
   <strong>Fully on-chain, self-custodial P2P escrow exchange with decentralized dispute resolution</strong>
@@ -24,13 +24,13 @@
 
 ## Overview
 
-**DAX** is a trustless peer-to-peer (P2P) crypto exchange that operates entirely on-chain. It enables anyone in the world to buy and sell crypto using local fiat currencies — without KYC, centralized servers, or custodial risk.
+**DAXVault** is a trustless peer-to-peer (P2P) crypto exchange that operates entirely on-chain. It enables anyone in the world to buy and sell crypto using local fiat currencies — without KYC, centralized servers, or custodial risk.
 
 There is **no backend, no database, and no API**. The entire platform runs on smart contracts deployed to [Arbitrum One](https://arbitrum.io/), with a cross-platform mobile client that reads contract state and event logs directly from the blockchain.
 
-### Why DAX?
+### Why DAXVault?
 
-| Problem | DAX Solution |
+| Problem | DAXVault Solution |
 |:---|:---|
 | Centralized exchanges custody user funds and are vulnerable to hacks | **Self-custodial** — users hold their own private keys |
 | KYC requirements exclude billions in emerging markets | **No KYC** — wallet address is the only identity needed |
