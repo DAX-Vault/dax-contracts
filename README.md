@@ -42,30 +42,21 @@ There is **no backend, no database, and no API**. The entire platform runs on sm
 
 ## Architecture
 
+
+```mermaid
+flowchart TD
+    subgraph SC ["DAX Smart Contracts (Arbitrum One)"]
+        direction LR
+        P2P["<b>DAX_P2P</b><br/>• Escrow<br/>• Ads<br/>• Trades<br/>• Chat<br/>• Court<br/>• Disputes"]
+        Token["<b>DAXToken</b><br/>• ERC20<br/>• 10M Fixed Supply<br/>• Juror Staking"]
+        AMM["<b>DAX_AMM</b><br/>• Multi-pool<br/>• x*y=k AMM<br/>• LP Shares<br/>• 0.3% Fee<br/><i>(Coming Soon)</i>"]
+    end
+
+    Client["<b>Mobile Client</b><br/>(Flutter — Private)"]
+
+    Client <-->|RPC / Event Logs| SC
 ```
-┌──────────────────────────────────────────────────────────┐
-│                    DAX Smart Contracts                    │
-│                     (Arbitrum One)                        │
-│                                                          │
-│  ┌─────────────┐  ┌──────────────┐  ┌─────────────────┐ │
-│  │  DAX_P2P    │  │  DAXToken    │  │  DAX_AMM        │ │
-│  │  ─────────  │  │  ─────────── │  │  ────────       │ │
-│  │  • Escrow   │  │  • ERC20     │  │  • Multi-pool   │ │
-│  │  • Ads      │  │  • 10M Fixed │  │  • x*y=k AMM    │ │
-│  │  • Trades   │  │    Supply    │  │  • LP Shares     │ │
-│  │  • Chat     │  │  • Juror     │  │  • 0.3% Fee     │ │
-│  │  • Court    │  │    Staking   │  │  (Coming Soon)   │ │
-│  │  • Disputes │  │              │  │                  │ │
-│  └─────────────┘  └──────────────┘  └─────────────────┘ │
-└──────────────────────────────────────────────────────────┘
-                            ▲
-                            │ RPC / Event Logs
-                            │
-                  ┌─────────┴──────────┐
-                  │   Mobile Client    │
-                  │ (Flutter — Private)│
-                  └────────────────────┘
-```
+
 
 ---
 
@@ -126,20 +117,22 @@ There is **no backend, no database, and no API**. The entire platform runs on sm
 
 ## Trade Flow
 
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Seller
+    participant SC as Smart Contract
+    actor Buyer
+
+    Seller->>SC: createAd() (locks tokens in escrow)
+    Buyer->>SC: initiateTrade() (escrow locked)
+    Note over Seller,Buyer: Buyer sends fiat off-chain (e.g., bank transfer)
+    Buyer->>SC: markPaid()
+    Seller->>SC: releaseTrade() (confirms fiat received)
+    SC->>Buyer: Transfer tokens (minus 0.1% fee)
 ```
-Seller                          Smart Contract                        Buyer
-  │                                   │                                  │
-  │── createAd (locks tokens) ───────►│                                  │
-  │                                   │◄──── initiateTrade ──────────────│
-  │                                   │      (escrow locked)             │
-  │                                   │                                  │
-  │   ◄─── Buyer sends fiat ─────────┼──────────────────────────────────│
-  │        (off-chain)                │                                  │
-  │                                   │◄──── markPaid ───────────────────│
-  │                                   │                                  │
-  │── releaseTrade ──────────────────►│────── tokens sent ──────────────►│
-  │   (confirms fiat received)        │      (minus 0.1% fee)           │
-```
+
 
 ---
 
