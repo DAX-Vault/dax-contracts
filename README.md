@@ -2,10 +2,10 @@
   <img src="dax_logo.png" alt="DAXVault Logo" width="180" />
 </p>
 
-<h1 align="center">DAXVault — Trustless P2P Crypto Exchange</h1>
+<h1 align="center">DAXVault</h1>
 
 <p align="center">
-  <strong>Fully on-chain, self-custodial P2P escrow exchange with decentralized dispute resolution</strong>
+  <strong>Fully on-chain, self-custodial vault with decentralized agreement resolution</strong>
 </p>
 
 <p align="center">
