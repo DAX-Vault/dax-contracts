@@ -39,6 +39,11 @@ const config = {
       url: process.env.BASE_RPC_URL || "https://mainnet.base.org",
       accounts,
     },
+    baseSepolia: {
+      url: process.env.BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org",
+      accounts,
+      chainId: 84532,
+    },
     polygon: {
       url: process.env.POLYGON_RPC_URL || "https://polygon-rpc.com",
       accounts,
