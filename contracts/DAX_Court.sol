@@ -222,17 +222,21 @@ contract DAX_Court is ReentrancyGuard {
         t.winningVerdict = winning;
         t.state = TrialState.RESOLVED;
 
-        // Unlock juror trial locks & execute slashing
+        // Unlock juror trial locks & execute slashing / ghosting penalties
         for (uint256 i = 0; i < t.assignedJurors.length; i++) {
             address juror = t.assignedJurors[i];
             if (activeTrialLocks[juror] > 0) {
                 activeTrialLocks[juror]--;
             }
 
-            // Slash minority voters
+            // Slash minority voters (10%)
             if (hasRevealed[disputeId][juror] && revealedVotes[disputeId][juror] != winning) {
                 uint256 slashAmt = (jurorStakes[juror] * slashingBps) / 10000;
                 jurorStakes[juror] -= slashAmt;
+            } else if (commitHashes[disputeId][juror] != bytes32(0) && !hasRevealed[disputeId][juror]) {
+                // Ghosting penalty: 20% slash for committing but failing to reveal
+                uint256 ghostSlash = (jurorStakes[juror] * 2000) / 10000;
+                jurorStakes[juror] -= ghostSlash;
             }
         }
 
