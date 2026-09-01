@@ -40,6 +40,17 @@ async function main() {
   await p2p.waitForDeployment();
   console.log("DAX P2P Escrow deployed to:", await p2p.getAddress());
 
+  // Deploy DAX_Agreement Protocol contract
+  const AgreementFactory = await ethers.getContractFactory("DAX_Agreement");
+  const agreement = await AgreementFactory.deploy(
+    deployer.address, // Treasury
+    25,               // 0.25% protocol fee
+    deployer.address, // Initial Dispute Court (Deployer/Safety Council)
+    deployer.address  // Initial Trusted Forwarder
+  );
+  await agreement.waitForDeployment();
+  console.log("DAX_Agreement Protocol deployed to:", await agreement.getAddress());
+
   console.log("Deployment finished successfully!");
 }
 
