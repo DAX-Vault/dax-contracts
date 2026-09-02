@@ -1,5 +1,11 @@
 import pkg from "hardhat";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
 const { ethers } = pkg;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 async function main() {
   console.log("=== DAX V2: Base Sepolia Testnet Protocol Deployment ===");
@@ -12,6 +18,10 @@ async function main() {
 
   const balance = await ethers.provider.getBalance(deployer.address);
   console.log(`Balance:  ${ethers.formatEther(balance)} ETH`);
+
+  if (balance === 0n) {
+    throw new Error(`Deployer wallet ${deployer.address} has 0.0 ETH on Base Sepolia. Please fund testnet ETH before deploying.`);
+  }
 
   // Official Base Sepolia USDC contract address
   const BASE_SEPOLIA_USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
@@ -38,8 +48,30 @@ async function main() {
   console.log(` - DAX_Agreement Deployed at: ${agreementAddr}`);
 
   console.log("\n3. Linking Agreement Contract to Court...");
-  await daxCourt.setAgreementContract(agreementAddr);
+  const txLink = await daxCourt.setAgreementContract(agreementAddr);
+  await txLink.wait();
   console.log(" - DAX_Court.setAgreementContract linked successfully!");
+
+  const deploymentData = {
+    network: "baseSepolia",
+    chainId: Number(network.chainId),
+    agreementAddress: agreementAddr,
+    courtAddress: courtAddr,
+    usdcAddress: BASE_SEPOLIA_USDC,
+    treasuryAddress: TREASURY_ADDRESS,
+    forwarderAddress: FORWARDER_ADDRESS,
+    deployer: deployer.address,
+    timestamp: new Date().toISOString()
+  };
+
+  const deploymentsDir = path.join(__dirname, "../deployments");
+  if (!fs.existsSync(deploymentsDir)) {
+    fs.mkdirSync(deploymentsDir, { recursive: true });
+  }
+
+  const deploymentFilePath = path.join(deploymentsDir, "base_sepolia.json");
+  fs.writeFileSync(deploymentFilePath, JSON.stringify(deploymentData, null, 2));
+  console.log(`\n - Deployment metadata saved to: ${deploymentFilePath}`);
 
   console.log("\n=== DEPLOYMENT SUMMARY FOR BASE SEPOLIA ===");
   console.log(`DAX_Agreement:    ${agreementAddr}`);
@@ -53,3 +85,4 @@ main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
 });
+
