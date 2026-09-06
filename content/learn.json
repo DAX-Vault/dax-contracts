@@ -1,0 +1,94 @@
+{
+  "version": 2,
+  "updatedAt": "2026-09-06",
+  "featuredArticleId": "what-is-dax",
+  "categories": [
+    { "id": "all", "name": "All", "iconName": "menu_book" },
+    { "id": "guides", "name": "Guides", "iconName": "lightbulb" },
+    { "id": "escrow", "name": "Escrow", "iconName": "lock" },
+    { "id": "evidence", "name": "Evidence", "iconName": "document" },
+    { "id": "court", "name": "Court", "iconName": "gavel" },
+    { "id": "security", "name": "Security", "iconName": "shield" },
+    { "id": "updates", "name": "Updates", "iconName": "sparkles" },
+    { "id": "faq", "name": "FAQ", "iconName": "help" }
+  ],
+  "guides": [
+    {
+      "id": "what-is-dax",
+      "title": "What is DAX?",
+      "subtitle": "Decentralized Agreement Infrastructure (Agreements + Escrow + Evidence + Dispute Resolution)",
+      "category": "Guides",
+      "date": "Sep 2026",
+      "readTime": "2 min read",
+      "iconName": "lightbulb",
+      "tags": ["overview", "infrastructure", "escrow", "agreements", "arbitration"],
+      "content": "DAX is decentralized agreement infrastructure.\n\nIn short:\nDAX lets two parties create enforceable digital agreements backed by on-chain assets, with structured obligations, evidence, disputes, and settlement — without DAX custodying their funds.\n\nEven shorter:\nDAX = Agreements + Escrow + Evidence + Dispute Resolution.\n\nIt supports trades, services, milestones, deliveries, recurring work, and other bilateral commitments across multiple blockchain networks.\n\n• Vault: Protects what you own (tokens, accounts, keys).\n• Agreements: Protects what you commit to (contracts, escrow tranches).\n• Evidence: Proves what happened (encrypted files, Merkle proofs).\n• Court: Resolves what goes wrong (jurors, staking, verdicts)."
+    },
+    {
+      "id": "how-escrow-works",
+      "title": "How On-Chain Escrow Works",
+      "subtitle": "Step-by-step lifecycle of a DAX agreement",
+      "category": "Escrow",
+      "date": "Sep 2026",
+      "readTime": "3 min read",
+      "iconName": "lock",
+      "tags": ["escrow", "lifecycle", "tranches", "settlement"],
+      "content": "Escrow ensures neither party can run away with money or deliverables.\n\n1. Creation: Party A creates an agreement specifying terms, counterparty, and payment amount (e.g. 5,000 USDT).\n\n2. Funding: Party A locks the funds into the DAX Escrow contract on Arbitrum One.\n\n3. Delivery & Evidence: Party B performs work or sends deliverables, attaching encrypted proof files.\n\n4. Settlement: Once Party A verifies delivery, they sign an off-chain EIP-712 release. Escrow automatically pays Party B instantly with zero platform fees.\n\n5. Dispute Option: If expectations are not met, either party can escalate to DAX Court before funds are released."
+    },
+    {
+      "id": "evidence-merkle-proofs",
+      "title": "Evidence Vault & Cryptographic Proofs",
+      "subtitle": "How private files become immutable proof without leaking data",
+      "category": "Evidence",
+      "date": "Sep 2026",
+      "readTime": "3 min read",
+      "iconName": "document",
+      "tags": ["evidence", "merkle", "sha256", "privacy"],
+      "content": "Why don't we store whole PDF or ZIP files directly on the blockchain?\n\nBecause storing megabytes on-chain is expensive and exposes your private files to the public!\n\nDAX solves this with Merkle commitments:\n\n• Your files (receipts, screenshots, zips) are encrypted locally using AES-256-GCM.\n• A SHA-256 Merkle root hash is generated from all evidence.\n• Only this 32-byte cryptographic root is committed on-chain.\n\nThis guarantees that neither party can alter, replace, or backdate evidence after the fact. In a dispute, authorized jurors verify that provided files match the on-chain Merkle root."
+    },
+    {
+      "id": "dax-court-disputes",
+      "title": "DAX Court: Juror Arbitration",
+      "subtitle": "Decentralized justice without expensive lawyers or courts",
+      "category": "Court",
+      "date": "Sep 2026",
+      "readTime": "4 min read",
+      "iconName": "gavel",
+      "tags": ["court", "jurors", "disputes", "staking"],
+      "content": "When a dispute occurs, DAX Court steps in to arbitrate fairly.\n\n• Independent Jurors: Selected randomly based on staked DAX tokens (minimum 100 DAX) to ensure impartial verdicts.\n• Evidence Review: Jurors receive authorized decryptable evidence files and agreement terms.\n• Majority Consensus: Jurors vote independently. Coherent jurors who vote with the consensus receive rewards from dispute fees.\n• Automated Execution: Once the verdict is recorded, smart contracts immediately disburse or refund the escrow according to the court ruling."
+    },
+    {
+      "id": "vault-security-backup",
+      "title": "Vault Security & Seed Backup Guide",
+      "subtitle": "Safeguard your secret 12-word recovery phrase",
+      "category": "Security",
+      "date": "Sep 2026",
+      "readTime": "2 min read",
+      "iconName": "shield",
+      "tags": ["security", "vault", "seed-phrase", "backup"],
+      "content": "DAX is 100% self-custodial. We do not hold your keys or have a database of passwords.\n\n• Write It Down: Keep your 12 recovery words written physically on paper in a secure location.\n• Never Share: No DAX team member will ever ask for your seed words or private key.\n• Hardware Security: On your phone, keys are encrypted using AES-256 inside the hardware Keystore.\n• Biometric Lock: Enable fingerprint/PIN locks for instant local protection."
+    },
+    {
+      "id": "dax-v2-protocol-update",
+      "title": "DAX V2.0 Protocol Release",
+      "subtitle": "Arbitrum One integration, 0ms launch, and unified vault architecture",
+      "category": "Updates",
+      "date": "Sep 2026",
+      "readTime": "2 min read",
+      "iconName": "sparkles",
+      "tags": ["updates", "v2", "release", "arbitrum"],
+      "content": "We are thrilled to announce DAX V2.0!\n\nKey Highlights:\n• Arbitrum One L2 Escrow: Ultra-low transaction fees and sub-second settlement.\n• 0ms Zero-Latency Startup: Instant biometric unlock directly from Android Keystore without loading spinners.\n• Clean Product Separation: Dedicated Vault for your assets, and Evidence directly contextualized within Agreements.\n• Dynamic Content Service: Instant documentation and guides delivered serverlessly via GitHub public repositories."
+    },
+    {
+      "id": "frequently-asked-questions",
+      "title": "Frequently Asked Questions (FAQ)",
+      "subtitle": "Quick answers to common questions about DAX",
+      "category": "FAQ",
+      "date": "Sep 2026",
+      "readTime": "3 min read",
+      "iconName": "help",
+      "tags": ["faq", "questions", "fees", "recovery"],
+      "content": "Q: What if the counterparty stops responding?\nA: Agreements have expiration timestamps. If the other party does not deliver before expiry, you can trigger a refund or escalate to DAX Court.\n\nQ: Does DAX charge custody or trading fees?\nA: No. DAX is non-custodial and operates with zero protocol platform fees on standard escrow settlements.\n\nQ: Can I restore my vault on another phone?\nA: Yes! Enter your 12 secret recovery words into 'Restore Vault' to access your funds and accounts anywhere."
+    }
+  ]
+}
