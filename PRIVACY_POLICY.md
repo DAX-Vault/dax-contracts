@@ -3,9 +3,9 @@
 **Last Updated:** September 8, 2026  
 **Effective Date:** September 8, 2026  
 
-This Privacy Policy explains how **DAXVault** ("we", "our", or "the App"), a self-custodial decentralized agreement and digital asset management application developed by the **DAX Protocol** community, handles user data.
+This Privacy Policy explains how **DAXVault** ("we", "our", or "the App"), a self-custodial digital asset wallet and decentralized agreement utility developed by the **DAX Protocol** community, handles user data.
 
-We believe that privacy and financial sovereignty are fundamental human rights. Our architecture is designed so that **we do not collect, store, transmit, or monetize your personal information or private keys**.
+We believe that privacy and data ownership are fundamental rights. Our architecture is designed so that **we do not collect, store, transmit, or monetize your personal information or private keys**.
 
 ---
 
@@ -13,16 +13,16 @@ We believe that privacy and financial sovereignty are fundamental human rights. 
 
 - **No Centralized Servers or Databases:** DAXVault does not operate user account databases, backend servers, or centralized custody infrastructure.
 - **No Account Registration:** You do not provide your name, email address, phone number, government ID, or physical address to use the App.
-- **Self-Custodial Architecture:** Your private keys, seed phrases, and passwords never leave your device. You have exclusive ownership and custody of your cryptographic assets.
+- **Self-Custodial Architecture:** Your private keys, seed phrases, and passwords never leave your device. You have exclusive ownership and custody of your digital assets.
 
 ---
 
 ## 2. Information We Access and How It Is Used
 
-DAXVault accesses only the minimum device capabilities necessary to deliver core decentralized wallet and agreement functionality:
+DAXVault accesses only the minimum device capabilities necessary to deliver core decentralized wallet and agreement verification functionality:
 
 ### A. Camera (`android.permission.CAMERA`)
-- **Purpose:** Used exclusively to scan QR codes for wallet addresses, transaction requests, and peer-to-peer agreement coordination.
+- **Purpose:** Used exclusively to scan QR codes for wallet addresses, transaction requests, and digital agreement coordination.
 - **Data Handling:** Camera data is processed in real time entirely on your device using on-device optical recognition. No images, video streams, or photographic data are saved to disk or transmitted to any server.
 
 ### B. Biometric Authentication (`android.permission.USE_BIOMETRIC`)
@@ -30,11 +30,11 @@ DAXVault accesses only the minimum device capabilities necessary to deliver core
 - **Data Handling:** Biometric authentication is handled entirely by your device’s operating system and hardware security module (Android KeyStore / Trusted Execution Environment). The App never has access to your raw biometric data or templates.
 
 ### C. Push Notifications (`android.permission.POST_NOTIFICATIONS`)
-- **Purpose:** Used to display local system status notifications regarding escrow deposits, peer agreement updates, and resolution deadlines.
+- **Purpose:** Used to display local system status notifications regarding digital agreement status updates and verification deadlines.
 - **Data Handling:** Notifications are generated locally or received via decentralized relay networks. We do not track or profile user activity through notification payloads.
 
 ### D. Network Access (`android.permission.INTERNET`)
-- **Purpose:** Enables direct communication with public decentralized blockchain RPC nodes (such as Arbitrum One) and peer-to-peer agreement signaling relays.
+- **Purpose:** Enables direct communication with public decentralized blockchain RPC nodes (such as Arbitrum One) and decentralized communication relays.
 - **Data Handling:** Used solely to query on-chain contract state, fetch gas parameters, and broadcast cryptographically signed transactions that you explicitly authorize.
 
 ---
@@ -49,9 +49,9 @@ DAXVault accesses only the minimum device capabilities necessary to deliver core
 
 ## 4. Public Blockchain Data
 
-When you broadcast a transaction or interact with smart contracts on the Arbitrum blockchain or other distributed networks:
+When you broadcast a transaction or interact with smart contracts on the Arbitrum network or other distributed networks:
 - Transactions, wallet addresses, token amounts, and contract state changes are recorded on a public, immutable distributed ledger.
-- This information is public by nature of blockchain technology and is accessible to anyone inspecting the blockchain. We do not control, store, or have the ability to alter or erase public on-chain records.
+- This information is public by nature of blockchain technology and is accessible to anyone inspecting the network. We do not control, store, or have the ability to alter or erase public on-chain records.
 
 ---
 
@@ -89,8 +89,8 @@ We may update this Privacy Policy from time to time. Any changes will be reflect
 
 ## 9. Contact Us
 
-If you have questions, feedback, or concerns regarding this Privacy Policy or our privacy practices, you can contact the team:
+If you have questions, feedback, or concerns regarding this Privacy Policy or our privacy practices, you can contact us:
 
+- **Email:** `ulterior024@gmail.com`
 - **GitHub Issues:** [https://github.com/DAX-Vault/dax-contracts/issues](https://github.com/DAX-Vault/dax-contracts/issues)
-- **Email:** `privacy@daxvault.org`
 - **Repository:** [https://github.com/DAX-Vault/dax-contracts](https://github.com/DAX-Vault/dax-contracts)
