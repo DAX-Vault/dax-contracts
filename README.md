@@ -260,6 +260,12 @@ This project is licensed under the [MIT License](LICENSE).
 
 ---
 
+## Privacy Policy
+
+For our mobile application privacy policy and data safety disclosure, see [PRIVACY_POLICY.md](PRIVACY_POLICY.md).
+
+---
+
 <p align="center">
   <strong>DAX — Trade Crypto. Trust No One.</strong>
 </p>
