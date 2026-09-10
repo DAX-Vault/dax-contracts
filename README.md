@@ -5,17 +5,18 @@
 <h1 align="center">DAXVault</h1>
 
 <p align="center">
-  <strong>Fully on-chain, self-custodial vault with decentralized agreement resolution</strong>
+  <strong>Universal Trustless Digital Agreement & Multi-Chain Settlement Protocol</strong>
 </p>
 
 <p align="center">
-  <a href="https://arbiscan.io/address/0xc0eF9A343Fb0fC17fB424a4ED7234a059233A83B#code">
-    <img src="https://img.shields.io/badge/Arbitrum-Mainnet-blue?logo=ethereum" alt="Arbitrum Mainnet" />
+  <a href="https://basescan.org">
+    <img src="https://img.shields.io/badge/Network-Base%20%7C%20Arbitrum-blue?logo=ethereum" alt="Networks" />
   </a>
-  <a href="https://arbiscan.io/address/0xc0eF9A343Fb0fC17fB424a4ED7234a059233A83B#code">
-    <img src="https://img.shields.io/badge/Contract-Verified-green?logo=ethereum" alt="Verified" />
+  <a href="https://github.com/DAX-Vault/dax-contracts/actions">
+    <img src="https://img.shields.io/badge/Tests-42%20Passing-brightgreen?logo=hardhat" alt="Tests" />
   </a>
   <img src="https://img.shields.io/badge/Solidity-0.8.24-orange?logo=solidity" alt="Solidity" />
+  <img src="https://img.shields.io/badge/EIP-712%20%2F%202612%20%2F%202771-purple" alt="EIP Standards" />
   <img src="https://img.shields.io/badge/License-MIT-yellow" alt="License" />
   <img src="https://img.shields.io/badge/Framework-Hardhat-gold" alt="Hardhat" />
 </p>
@@ -24,232 +25,275 @@
 
 ## Overview
 
-**DAXVault** is a trustless peer-to-peer (P2P) crypto exchange that operates entirely on-chain. It enables anyone in the world to buy and sell crypto using local fiat currencies — without KYC, centralized servers, or custodial risk.
+**DAXVault** is a fully on-chain, self-custodial digital agreement and multi-chain settlement protocol. It enables counterparties to enter into deterministically enforced, non-custodial smart agreements featuring automated milestone fulfillment, deliverable verification, and decentralized community dispute arbitration — without centralized custodians, intermediaries, or account registration.
 
-There is **no backend, no database, and no API**. The entire platform runs on smart contracts deployed to [Arbitrum One](https://arbitrum.io/), with a cross-platform mobile client that reads contract state and event logs directly from the blockchain.
+The protocol operates with **zero centralized backends, zero user databases, and zero custodial holding**. The entire state machine runs deterministically on EVM-compatible networks (such as Base and Arbitrum), with a cross-platform client that verifies state and digital proofs directly against the blockchain.
 
-### Why DAXVault?
+### Core Guarantees
 
-| Problem | DAXVault Solution |
+| Challenge | DAXVault Protocol Guarantee |
 |:---|:---|
-| Centralized exchanges custody user funds and are vulnerable to hacks | **Self-custodial** — users hold their own private keys |
-| KYC requirements exclude billions in emerging markets | **No KYC** — wallet address is the only identity needed |
-| Platform databases can be breached, exposing user data | **No database** — all state lives on-chain, nothing to breach |
-| Centralized dispute resolution is opaque and biased | **Decentralized Court** — community jurors vote on evidence |
-| High fees on centralized P2P platforms | **0.1% escrow fee** — minimal and transparent |
+| **Custodial Risk** | **100% Self-Custodial** — Users retain exclusive control of private keys and assets; zero admin withdrawal or custodial access backdoors. |
+| **Privacy & Access Barriers** | **Permissionless & Pseudonymous** — Wallet address is the only identifier needed. No account registration or surveillance databases. |
+| **Counterparty Default** | **Deterministic Smart Escrow** — Funds are locked on-chain and released only upon verified deliverable approval or mutual agreement. |
+| **Terms Tampering** | **Immutable Canonical Terms** — All agreements bind to canonical terms hashes (`termsHash`) and Merkle evidence roots (`evidenceRoot`). |
+| **Dispute Resolution** | **Decentralized Community Court** — Stake-secured, commit-reveal juror voting with democratic consensus and slashing for dishonest voters. |
+| **Unresponsive Parties** | **Strict Expiry Guarantees** — Automated timestamp boundaries allow initiator refunds if deadlines expire without fulfillment. |
 
 ---
 
 ## Architecture
 
+The DAXVault protocol consists of three core on-chain smart contracts designed around strict separation of concerns, formal security invariants, and gas-efficient execution:
 
 ```mermaid
 flowchart TD
-    subgraph SC ["DAX Smart Contracts (Arbitrum One)"]
-        direction LR
-        P2P["<b>DAX_P2P</b><br/>• Escrow<br/>• Ads<br/>• Trades<br/>• Chat<br/>• Court<br/>• Disputes"]
-        Token["<b>DAXToken</b><br/>• ERC20<br/>• 10M Fixed Supply<br/>• Juror Staking"]
-        AMM["<b>DAX_AMM</b><br/>• Multi-pool<br/>• x*y=k AMM<br/>• LP Shares<br/>• 0.3% Fee<br/><i>(Coming Soon)</i>"]
+    subgraph Core ["DAXVault Smart Contract Suite"]
+        direction TB
+        OP["<b>DAX_OfferPool</b><br/>• Non-Custodial Multi-Slice Vault<br/>• Collateral Deposit & Slicing<br/>• Atomic Child Agreement Generation"]
+        AG["<b>DAX_Agreement</b><br/>• Universal Agreement & Settlement Protocol<br/>• EIP-712 Typed Authorization<br/>• EIP-2612 Permit & ERC-2771 Meta-Tx<br/>• Immutable Terms & Evidence Hashing"]
+        CT["<b>DAX_Court</b><br/>• Commit-Reveal Dispute Arbitration<br/>• 1 Juror = 1 Vote Consensus<br/>• Juror Staking Registry & Slashing"]
+        
+        OP -->|Instantiates Child Agreement| AG
+        AG <-->|Dispute Escalation & Verdicts| CT
     end
 
-    Client["<b>Mobile Client</b><br/>(Flutter — Private)"]
+    Client["<b>DAXVault Client</b><br/>(Self-Custodial Application)"]
+    Relay["<b>Decentralized Relayer / RPC</b><br/>(Gasless Forwarding / State Query)"]
 
-    Client <-->|RPC / Event Logs| SC
+    Client <-->|RPC / Signatures| Relay
+    Relay <-->|Meta-Tx / Calldata| AG
+    Client <-->|Direct EOA Transactions| Core
 ```
 
-
 ---
 
-## Deployed Contracts (Arbitrum One Mainnet)
+## Agreement Lifecycle Flow
 
-| Contract | Address | Arbiscan |
-|:---|:---|:---|
-| **DAX_P2P** (Escrow) | `0xc0eF9A343Fb0fC17fB424a4ED7234a059233A83B` | [View](https://arbiscan.io/address/0xc0eF9A343Fb0fC17fB424a4ED7234a059233A83B#code) |
-| **DAX Token** | `0xAB1Da50c33D43b27fF96e502cBaC99e8EB378A92` | [View](https://arbiscan.io/address/0xAB1Da50c33D43b27fF96e502cBaC99e8EB378A92#code) |
-
-### Supported Tokens
-
-| Token | Address |
-|:---|:---|
-| USDT | `0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9` |
-| USDC | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` |
-| WETH | `0x82aF49447D8a07e3bd95BD0d56f352415231aa11` |
-| WBTC | `0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f` |
-
----
-
-## Core Features
-
-### 🔒 P2P Escrow Trading (`DAX_P2P.sol`)
-
-- **Sell Ads**: Sellers lock tokens into the smart contract escrow. Buyers browse ads, initiate trades, send fiat off-chain, and receive crypto on-chain.
-- **Buy Ads**: Buyers post interest to purchase. Sellers match the ad and deposit tokens into escrow at trade initiation.
-- **Trade Lifecycle**: `Create Ad → Initiate Trade → Mark Paid → Release / Cancel / Dispute`
-- **Buyer Cancel**: Buyers can cancel pending trades at any time, immediately unlocking seller's tokens.
-- **Ad Management**: Update rate, limits, and payment methods without re-creating ads.
-
-### ⚖️ Decentralized Dispute Resolution (Community Court)
-
-- **Stake-based Arbitration**: Community members stake DAX tokens (min. 100 DAX) to become eligible jurors.
-- **Evidence-based Voting**: When a trade is disputed, on-chain chat history is submitted as evidence. Jurors vote `Buyer` or `Seller`.
-- **Incentive Alignment**: Correct jurors earn a share of the trade fee. Incorrect jurors get slashed (10 DAX per wrong vote).
-- **Admin Supreme Court**: Treasury can break tie votes to prevent frozen funds.
-
-### 💬 On-Chain P2P Chat
-
-- Trade participants communicate through on-chain events (`P2pChatMessage`).
-- Chat history is immutable and serves as evidence in disputes.
-- No external messaging infrastructure required.
-
-### 🪙 DAX Token (`DAXToken.sol`)
-
-- Standard ERC20 with a **fixed supply of 10,000,000 DAX**.
-- No mint function post-deployment — supply is permanently capped.
-- Used for juror staking in the Community Court.
-
-### 🔄 AMM Swap (`DAX_AMM.sol`) — Coming Soon
-
-- Multi-pool constant product AMM (`x * y = k`).
-- 0.3% swap fee: 0.25% to LPs, 0.05% to protocol treasury.
-- LP share tracking per pool per user.
-
----
-
-## Trade Flow
-
+Agreements proceed through a deterministic state machine: `ACTIVE` &rarr; `SETTLED` / `REFUNDED` / `DISPUTED` &rarr; `RESOLVED`.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Seller
-    participant SC as Smart Contract
-    actor Buyer
+    actor PartyA as Party A (Initiator / Client)
+    participant SC as DAX_Agreement
+    actor PartyB as Party B (Provider / Counterparty)
+    participant Court as DAX_Court
 
-    Seller->>SC: createAd() (locks tokens in escrow)
-    Buyer->>SC: initiateTrade() (escrow locked)
-    Note over Seller,Buyer: Buyer sends fiat off-chain (e.g., bank transfer)
-    Buyer->>SC: markPaid()
-    Seller->>SC: releaseTrade() (confirms fiat received)
-    SC->>Buyer: Transfer tokens (minus 0.1% fee)
+    PartyA->>SC: createAndFundAgreement() (Locks collateral in escrow)
+    Note over SC: Agreement in ACTIVE state<br/>termsHash & expiresAt locked
+
+    PartyB->>PartyA: Deliver service / data & commit evidenceRoot
+    
+    alt Happy Path: Settlement via Signed Digital Release
+        PartyA->>SC: submitAndRelease(sigA, evidenceHash) [EIP-712]
+        SC->>PartyB: Transfer escrowed principal (minus protocol fee)
+        Note over SC: State -> SETTLED
+    else Mutual Cancellation
+        PartyA->>SC: mutualCancel(sigA, sigB) [Dual EIP-712]
+        SC->>PartyA: 100% Principal refunded
+        Note over SC: State -> REFUNDED
+    else Expiration Boundary
+        Note over SC: block.timestamp > expiresAt
+        PartyA->>SC: claimExpiredRefund()
+        SC->>PartyA: 100% Principal refunded
+        Note over SC: State -> REFUNDED
+    else Dispute Escalation
+        PartyA->>SC: raiseDispute()
+        SC->>Court: Initialize trial & lock agreement
+        Note over Court: Commit-Reveal Voting Round
+        Court->>SC: resolveDispute(verdict)
+        SC->>PartyA: Disburse allocation
+        SC->>PartyB: Disburse allocation
+        Note over SC: State -> RESOLVED
+    end
 ```
-
 
 ---
 
-## Development
+## Core Smart Contracts
+
+### 1. `DAX_Agreement.sol` (Universal Agreement Protocol)
+- **Non-Custodial Escrow**: Isolates state per agreement ID (`agreements[agreementId]`).
+- **EIP-712 Signatures**: Supports gasless, off-chain authorizations for releases (`BUYER_RELEASE_TYPEHASH`) and mutual cancellations (`MUTUAL_CANCEL_TYPEHASH`).
+- **EIP-2612 Permit**: Allows one-click atomic deposit and agreement creation without prior ERC-20 approval transactions.
+- **ERC-2771 Meta-Transactions**: Native support for trusted forwarders enabling gasless execution for end users.
+- **Evidence Binding**: Links deliverable files and communication transcripts to canonical Merkle tree roots (`evidenceRoot`).
+- **Security Invariants**: Strictly enforces invariants INV-01 through INV-10 (no double settlement, no admin custody, party immutability).
+
+### 2. `DAX_Court.sol` (Dispute Arbitration Engine)
+- **Stake-Secured Jury**: Jurors stake tokens to become eligible for random selection on dispute panels.
+- **Two-Phase Commit-Reveal**: Jurors commit secret vote hashes during `VOTING_COMMIT` and reveal during `VOTING_REVEAL` to prevent voting collusion and herd behavior.
+- **Democratic Consensus**: 1 Juror = 1 Vote weighting, independent of stake size.
+- **Incentive Alignment**: Winning majority jurors earn resolution rewards; minority voters receive a 10% slashing penalty; non-revealing jurors face a 20% penalty.
+- **Verdicts**: Enforces protocol-verified verdicts (`PARTY_A_WINS`, `PARTY_B_WINS`, `SPLIT_50_50`).
+
+### 3. `DAX_OfferPool.sol` (Multi-Slice Collateral Vault)
+- **Open Agreement Proposals**: Allows creators to lock collateral and publish open offer parameters (terms, minimum slice size, duration).
+- **Atomic Slicing**: Counterparties can accept portions of an offer, which atomically instantiates individual, isolated child agreements in `DAX_Agreement`.
+- **Zero Admin Backdoor**: Funds can only leave the vault via child agreement settlement or creator cancellation/expiry claims.
+
+---
+
+## Security Invariants (INV-01 to INV-10)
+
+The protocol implements formal security invariants rigorously tested across normal and adversarial execution paths:
+
+| Invariant | Description | Enforcement Mechanism |
+|:---|:---|:---|
+| **INV-01: Authorized Transitions** | Only designated parties (`partyA`, `partyB`, `Court`) can trigger state changes. | `onlyParties`, `onlyCourt`, EIP-712 ECDSA recovery. |
+| **INV-02: Zero Admin Custody** | Protocol administrators cannot withdraw or redirect escrowed collateral. | Zero admin withdrawal functions in bytecode. |
+| **INV-03: No Double Settlement** | Settled, refunded, or resolved agreements cannot be re-executed. | Strict enum state checks (`state == ACTIVE` / `state == DISPUTED`). |
+| **INV-04: Terms Immutability** | Agreement terms and hashes are immutable once initialized. | Read-only struct fields initialized at creation; no setters. |
+| **INV-05: Party Immutability** | Counterparty addresses cannot be substituted or hijacked. | Struct fields immutable; payouts routed strictly to specified parties. |
+| **INV-06: Cancellation Authenticity**| Mutual cancellation strictly requires authenticated dual approvals. | Verification of dual EIP-712 ECDSA signatures. |
+| **INV-07: Expiry Correctness** | Expiry refunds are strictly bounded by timestamps. | Enforced by `block.timestamp > expiresAt`. |
+| **INV-08: Dispute Finality** | Court resolution executes permanently and atomically. | One-way state transition to `RESOLVED`. |
+| **INV-09: Asset Conservation** | Total deposits strictly equal total releases, refunds, and protocol fees. | Mathematical delta accounting; verified in fuzzing suites. |
+| **INV-10: Deterministic Reverts** | Any unauthorized or invalid state change deterministically reverts. | ReentrancyGuard and explicit error checks. |
+
+---
+
+## Supported Networks & Assets
+
+The protocol is designed for EVM-compatible layer-2 and layer-1 networks:
+
+- **Primary Deployment Targets**:
+  - **Base** (Base Mainnet & Base Sepolia Testnet)
+  - **Arbitrum One** (Mainnet & Arbitrum Sepolia Testnet)
+  - **Ethereum**, **Optimism**, **Polygon**
+
+- **Supported Asset Types**:
+  - Native Currency (ETH)
+  - Standard ERC-20 Tokens (USDC, USDT, WETH, WBTC)
+  - EIP-2612 Permit-compatible ERC-20 Tokens
+
+---
+
+## Development & Testing
 
 ### Prerequisites
 
-- Node.js ≥ 18
-- npm
+- Node.js &ge; 18.x
+- npm &ge; 9.x
 
-### Setup
+### Installation
 
 ```bash
-git clone https://github.com/daxp2p/dax-protocol.git
-cd dax-protocol
+git clone https://github.com/DAX-Vault/dax-contracts.git
+cd dax-contracts
 npm install
 cp .env.example .env
-# Edit .env with your private key and RPC URLs
 ```
 
-### Compile
+### Compile Smart Contracts
 
 ```bash
 npx hardhat compile
 ```
 
-### Test
+### Run Full Test Suite
+
+The test suite runs 42 automated unit, adversarial, and fuzzing tests:
 
 ```bash
 npx hardhat test
 ```
 
-### Deploy (Local)
+### Static Analysis & Linting
 
 ```bash
-npx hardhat node
-npx hardhat run scripts/deploy.js --network localhost
-```
-
-### Deploy (Arbitrum Mainnet)
-
-```bash
-npx hardhat run scripts/deploy_mainnet.js --network arbitrum
-```
-
-### Verify on Arbiscan
-
-```bash
-npx hardhat verify --network arbitrum <CONTRACT_ADDRESS> <CONSTRUCTOR_ARGS>
-```
-
-### Linting & Security
-
-```bash
-# Solidity linting
+# SolHint Solidity code quality check
 npm run lint:sol
 
-# Security analysis (requires Slither)
+# Slither static security analysis (requires Python Slither)
 npm run security:slither
 
-# Full scan
+# Full lint and security scan
 npm run scan
 ```
 
 ---
 
-## Security
+## Deployment Scripts
 
-- **ReentrancyGuard**: All state-changing functions protected against reentrancy attacks.
-- **SafeERC20**: All token transfers use OpenZeppelin's SafeERC20 to handle non-standard ERC20 implementations.
-- **Input Validation**: All limits, amounts, and addresses validated before state changes.
-- **Slither Audited**: Static analysis performed with Slither.
-- **SolHint Linted**: Code follows Solidity best practices enforced by SolHint.
+### Local Development Node
+
+```bash
+npx hardhat node
+npx hardhat run scripts/deploy_local.js --network localhost
+```
+
+### Base Sepolia Testnet
+
+```bash
+npx hardhat run scripts/deploy_base_sepolia.js --network baseSepolia
+```
+
+### Arbitrum Sepolia Testnet
+
+```bash
+npx hardhat run scripts/deploy_arbitrum_sepolia.js --network arbitrumSepolia
+```
+
+### Contract Verification
+
+```bash
+npx hardhat verify --network <network> <CONTRACT_ADDRESS> <CONSTRUCTOR_ARGS>
+```
 
 ---
 
 ## Fee Structure
 
-| Action | Fee | Recipient |
+| Action | Protocol Fee | Recipient |
 |:---|:---|:---|
-| P2P Trade Completion | 0.1% (10 bps) | Protocol Treasury |
-| Dispute (Buyer Wins) | 50% of trade fee to winning jurors | Jurors + Treasury |
-| Incorrect Dispute Vote | 10 DAX slashed | Winning Jurors |
-| AMM Swap (Coming Soon) | 0.3% (0.25% to LPs, 0.05% to Treasury) | LPs + Treasury |
+| Agreement Settlement | 0.25% - 0.50% (25–50 bps) | Protocol Treasury / Community Juror Pool |
+| Mutual Cancellation | 0.0% (Free) | 100% Refunded to Party A |
+| Expiration Claim | 0.0% (Free) | 100% Refunded to Party A |
+| Dispute Resolution | Allocated per verdict | Majority Jurors + Disputed Counterparty |
+| Minority Juror Penalty | 10% Stake Slashing | Allocated to Majority Consensus Jurors |
 
 ---
 
-## Project Structure
+## Repository Structure
 
-```
+```text
+dax-contracts/
 ├── contracts/
-│   ├── DAX_P2P.sol          # P2P Escrow with Court System
-│   ├── DAXToken.sol          # Platform ERC20 Token
-│   ├── DAX_AMM.sol           # AMM Swap (Coming Soon)
-│   └── MockToken.sol         # Test helper token
+│   ├── DAX_Agreement.sol          # Universal Agreement & Settlement Protocol
+│   ├── DAX_Court.sol              # Commit-Reveal Dispute Arbitration Engine
+│   ├── DAX_OfferPool.sol          # Non-Custodial Multi-Slice Collateral Vault
+│   ├── MockToken.sol              # Test ERC-20 Token implementation
+│   └── MockMaliciousToken.sol     # Adversarial test vector for security tests
+├── deployments/                   # Deployment artifacts and metadata
 ├── scripts/
-│   ├── deploy.js             # Local deployment
-│   ├── deploy_mainnet.js     # Mainnet deployment
-│   ├── deploy_p2p.js         # P2P-only deployment
-│   └── ...                   # Utility scripts
+│   ├── deploy_local.js            # Hardhat local network deployment
+│   ├── deploy_base_sepolia.js     # Base Sepolia deployment
+│   ├── deploy_arbitrum_sepolia.js # Arbitrum Sepolia deployment
+│   └── ...                        # Verification and integration helpers
 ├── test/
-│   └── DAX.test.js           # Comprehensive test suite
-├── hardhat.config.js         # Network & compiler config
-├── .solhint.json             # Linting rules
-└── .env.example              # Environment template
+│   ├── agreement.test.js          # Core agreement protocol unit tests
+│   ├── adversarial_agreement.test.js # Security invariant & attack vector tests
+│   ├── court.test.js              # Court arbitration tests
+│   ├── court_adversarial.test.js  # Juror slashing & collusion tests
+│   ├── court_fuzz.test.js         # Ghosting & boundary fuzz tests
+│   ├── DAX_OfferPool.test.js      # Multi-slice vault tests
+│   └── evidence_protocol.test.js  # JCS canonicalization & Merkle tree tests
+├── hardhat.config.js              # Hardhat configuration & compilers
+└── package.json                   # Dependencies and scripts
 ```
 
 ---
 
 ## Contributing
 
-We welcome contributions! Please open an issue first to discuss proposed changes.
+Contributions are welcome! Please feel free to submit issues or pull requests:
 
-1. Fork the repo
-2. Create a feature branch (`git checkout -b feature/my-feature`)
-3. Commit your changes
-4. Push to the branch
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/my-feature`)
+3. Commit your changes (`git commit -m 'feat: add feature'`)
+4. Push to the branch (`git push origin feature/my-feature`)
 5. Open a Pull Request
 
 ---
@@ -262,10 +306,10 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## Privacy Policy
 
-For our mobile application privacy policy and data safety disclosure, see [PRIVACY_POLICY.md](PRIVACY_POLICY.md).
+For our mobile client privacy policy and data safety disclosure, see [PRIVACY_POLICY.md](PRIVACY_POLICY.md).
 
 ---
 
 <p align="center">
-  <strong>DAX — Trade Crypto. Trust No One.</strong>
+  <strong>DAX Protocol — Trustless Digital Agreements. Zero Intermediaries.</strong>
 </p>
