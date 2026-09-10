@@ -29,7 +29,7 @@ async function main() {
   // 2. Deploy DAX_Court (takes staking token, using USDT for court staking)
   console.log("\n2. Deploying DAX_Court...");
   const DAX_Court = await hre.ethers.getContractFactory("DAX_Court");
-  const court = await DAX_Court.deploy(usdtAddress);
+  const court = await DAX_Court.deploy(usdtAddress, deployer.address);
   await court.waitForDeployment();
   const courtAddress = await court.getAddress();
   console.log("✅ DAX_Court deployed at:", courtAddress);

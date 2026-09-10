@@ -24,7 +24,7 @@ async function main() {
   // 1. Deploy DAX_Court
   console.log("\n1. Deploying DAX_Court...");
   const DAX_Court = await hre.ethers.getContractFactory("DAX_Court");
-  const court = await DAX_Court.deploy(usdtAddress);
+  const court = await DAX_Court.deploy(usdtAddress, deployer.address);
   await court.waitForDeployment();
   const courtAddress = await court.getAddress();
   console.log("✅ DAX_Court deployed at:", courtAddress);

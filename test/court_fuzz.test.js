@@ -5,7 +5,7 @@ const { ethers } = pkg;
 describe("DAX Phase 6.5: Court Adversarial Security & Fuzzing Gate", function () {
   let DAX_Agreement, DAX_Court, MockToken;
   let daxAgreement, daxCourt, daxToken, mockUSDC;
-  let owner, treasury, partyA, partyB, juror1, juror2, juror3, attacker;
+  let owner, treasury, partyA, partyB, juror1, juror2, juror3, platformAuthority, attacker;
 
   const INITIAL_SUPPLY = ethers.parseUnits("1000000", 18);
   const MIN_STAKE = ethers.parseUnits("100", 18);
@@ -13,7 +13,7 @@ describe("DAX Phase 6.5: Court Adversarial Security & Fuzzing Gate", function ()
   const TERMS_HASH = ethers.keccak256(ethers.toUtf8Bytes("Fuzz Audit Contract"));
 
   beforeEach(async function () {
-    [owner, treasury, partyA, partyB, juror1, juror2, juror3, attacker] = await ethers.getSigners();
+    [owner, treasury, partyA, partyB, juror1, juror2, juror3, platformAuthority, attacker] = await ethers.getSigners();
 
     const MockTokenFactory = await ethers.getContractFactory("MockToken");
     daxToken = await MockTokenFactory.deploy("DAX Token", "DAX", INITIAL_SUPPLY);
@@ -23,7 +23,7 @@ describe("DAX Phase 6.5: Court Adversarial Security & Fuzzing Gate", function ()
     await mockUSDC.waitForDeployment();
 
     const CourtFactory = await ethers.getContractFactory("DAX_Court");
-    daxCourt = await CourtFactory.deploy(await daxToken.getAddress());
+    daxCourt = await CourtFactory.deploy(await daxToken.getAddress(), platformAuthority.address);
     await daxCourt.waitForDeployment();
 
     const AgreementFactory = await ethers.getContractFactory("DAX_Agreement");
@@ -56,7 +56,14 @@ describe("DAX Phase 6.5: Court Adversarial Security & Fuzzing Gate", function ()
 
       const salt = ethers.randomBytes(32);
       const tx = await daxAgreement.connect(partyA).createAndFundAgreement(
-        partyB.address, await mockUSDC.getAddress(), AGREEMENT_AMOUNT, TERMS_HASH, 86400, salt
+        partyB.address,
+        await mockUSDC.getAddress(),
+        AGREEMENT_AMOUNT,
+        TERMS_HASH,
+        ethers.ZeroHash,
+        1,
+        86400,
+        salt
       );
       const receipt = await tx.wait();
       agreementId = receipt.logs.find(l => l.fragment && l.fragment.name === "AgreementCreated").args.agreementId;
@@ -74,7 +81,7 @@ describe("DAX Phase 6.5: Court Adversarial Security & Fuzzing Gate", function ()
       ).to.be.revertedWith("DAX_Court: Reveal window still open");
     });
 
-    it("Ghosting Juror (commits but fails to reveal) receives 20% slashing penalty", async function () {
+    it("Ghosting Juror (commits but fails to reveal) receives 20% slashing penalty on fallback", async function () {
       const secret1 = ethers.keccak256(ethers.toUtf8Bytes("s1"));
       const secret2 = ethers.keccak256(ethers.toUtf8Bytes("s2"));
       const secret3 = ethers.keccak256(ethers.toUtf8Bytes("s3"));
@@ -99,8 +106,16 @@ describe("DAX Phase 6.5: Court Adversarial Security & Fuzzing Gate", function ()
       await ethers.provider.send("evm_increaseTime", [86401]);
       await ethers.provider.send("evm_mine");
 
+      // Regular finalizeDispute MUST fail because quorum < 3 (only 2 revealed)
+      await expect(
+        daxCourt.finalizeDispute(disputeId)
+      ).to.be.revertedWith("DAX_Court: Quorum not reached");
+
       const juror3StakeBefore = await daxCourt.jurorStakes(juror3.address);
-      await daxCourt.finalizeDispute(disputeId);
+
+      // Platform authority resolves after quorum failure
+      await daxCourt.connect(platformAuthority).resolveByPlatformAuthority(disputeId, verdict);
+
       const juror3StakeAfter = await daxCourt.jurorStakes(juror3.address);
 
       // Ghosting penalty = 20% of 100 DAX = 20 DAX
@@ -111,19 +126,23 @@ describe("DAX Phase 6.5: Court Adversarial Security & Fuzzing Gate", function ()
     it("ATTACK: Double finalization of dispute MUST REVERT", async function () {
       const secret1 = ethers.keccak256(ethers.toUtf8Bytes("s1"));
       const secret2 = ethers.keccak256(ethers.toUtf8Bytes("s2"));
+      const secret3 = ethers.keccak256(ethers.toUtf8Bytes("s3"));
       const verdict = 1;
 
       const commit1 = ethers.keccak256(ethers.solidityPacked(["uint8", "bytes32", "address", "uint256"], [verdict, secret1, juror1.address, disputeId]));
       const commit2 = ethers.keccak256(ethers.solidityPacked(["uint8", "bytes32", "address", "uint256"], [verdict, secret2, juror2.address, disputeId]));
+      const commit3 = ethers.keccak256(ethers.solidityPacked(["uint8", "bytes32", "address", "uint256"], [verdict, secret3, juror3.address, disputeId]));
 
       await daxCourt.connect(juror1).commitVote(disputeId, commit1);
       await daxCourt.connect(juror2).commitVote(disputeId, commit2);
+      await daxCourt.connect(juror3).commitVote(disputeId, commit3);
 
       await ethers.provider.send("evm_increaseTime", [86401]);
       await ethers.provider.send("evm_mine");
 
       await daxCourt.connect(juror1).revealVote(disputeId, verdict, secret1);
       await daxCourt.connect(juror2).revealVote(disputeId, verdict, secret2);
+      await daxCourt.connect(juror3).revealVote(disputeId, verdict, secret3);
 
       await ethers.provider.send("evm_increaseTime", [86401]);
       await ethers.provider.send("evm_mine");

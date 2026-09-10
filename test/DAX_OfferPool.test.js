@@ -18,7 +18,7 @@ describe("DAX_OfferPool — Hardened Non-Custodial Vault & Multi-Slice Escrow Ga
 
     // 2. Deploy DAX_Court
     const DAX_Court = await hre.ethers.getContractFactory("DAX_Court");
-    court = await DAX_Court.deploy(await usdt.getAddress());
+    court = await DAX_Court.deploy(await usdt.getAddress(), deployer.address);
     await court.waitForDeployment();
 
     // 3. Deploy DAX_Agreement
@@ -102,13 +102,13 @@ describe("DAX_OfferPool — Hardened Non-Custodial Vault & Multi-Slice Escrow Ga
       const ag2 = await agreement.agreements(child2Id);
       const ag3 = await agreement.agreements(child3Id);
 
-      expect(ag1.amount).to.equal(slice1Amount);
+      expect(ag1.totalAmount).to.equal(slice1Amount);
       expect(ag1.partyB).to.equal(partyB.address);
 
-      expect(ag2.amount).to.equal(slice2Amount);
+      expect(ag2.totalAmount).to.equal(slice2Amount);
       expect(ag2.partyB).to.equal(partyC.address);
 
-      expect(ag3.amount).to.equal(slice3Amount);
+      expect(ag3.totalAmount).to.equal(slice3Amount);
       expect(ag3.partyB).to.equal(partyD.address);
     });
   });

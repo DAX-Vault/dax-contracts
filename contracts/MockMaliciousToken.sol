@@ -16,7 +16,7 @@ contract MockMaliciousToken is ERC20 {
         feeOnTransfer = _enabled;
     }
 
-    function setAttackTarget(address _target, bytes32 _agreementId) external {
+    function setAttackTarget(address _target, bytes32 /* _agreementId */) external {
         reentrantAttack = true;
         targetAgreement = _target;
     }

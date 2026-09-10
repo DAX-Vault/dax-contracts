@@ -8,14 +8,15 @@ import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import "@openzeppelin/contracts/metatx/ERC2771Context.sol";
 
 /**
  * @title DAX_Agreement
  * @notice Universal Trustless Agreement & Settlement Protocol.
  * @dev Enforces 10 Security Invariants (INV-01 to INV-10).
- * Implements EIP-712 typed authorizations, EIP-2612 Permit funding,
- * and ERC-2771 Gasless Meta-Transactions.
+ * Implements Merkle schedule commitments, EIP-712 typed authorizations,
+ * EIP-2612 Permit funding, and ERC-2771 Gasless Meta-Transactions.
  */
 contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
     using SafeERC20 for IERC20;
@@ -24,7 +25,7 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
     enum AgreementState {
         NON_EXISTENT, // 0
         ACTIVE,       // 1: Created & Funded
-        SETTLED,      // 2: Completed & Released
+        SETTLED,      // 2: Completed & Fully Released
         DISPUTED,     // 3: Escalated to Dispute Arbitration
         RESOLVED,     // 4: Dispute Verdict Executed
         REFUNDED      // 5: Cancelled or Expired Refund
@@ -36,22 +37,26 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
         address payable partyA;      // Buyer / Client (Initiator)
         address payable partyB;      // Seller / Provider (Counterparty)
         address tokenAddress;        // ERC-20 asset (address(0) for native ETH)
-        uint256 amount;              // Escrowed principal amount
+        uint256 totalAmount;         // Escrowed principal amount
+        uint256 releasedAmount;      // Cumulative amount released so far
         bytes32 termsHash;           // SHA-256 / IPFS hash of immutable terms
+        bytes32 scheduleHash;        // Merkle root of period schedule
+        uint256 periodCount;         // Total periods (1 for one-time, N for scheduled)
+        uint256 currentPeriod;       // Next active period index (starts at 0)
         uint64 createdAt;            // Creation timestamp
         uint64 expiresAt;            // Deliverable deadline timestamp
         AgreementState state;        // Current state enum
-        bytes32 evidenceRoot;        // Merkle root / IPFS hash of committed evidence
+        bytes32 evidenceRoot;        // Latest Merkle root / IPFS hash of committed evidence
         uint256 disputeId;           // Arbitration court reference ID (0 if none)
     }
 
     // --- Typehashes for EIP-712 ---
     bytes32 public constant MUTUAL_CANCEL_TYPEHASH = keccak256(
-        "MutualCancel(bytes32 agreementId,uint256 nonce,uint256 deadline)"
+        "MutualCancel(bytes32 agreementId,uint256 deadline)"
     );
 
     bytes32 public constant BUYER_RELEASE_TYPEHASH = keccak256(
-        "BuyerRelease(bytes32 agreementId,bytes32 evidenceHash,uint256 nonce,uint256 deadline)"
+        "BuyerRelease(bytes32 agreementId,uint256 periodIndex,uint256 releaseAmount,bytes32 evidenceHash,uint256 deadline)"
     );
 
     // --- Storage ---
@@ -60,7 +65,7 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
     address public disputeCourt;
 
     mapping(bytes32 => Agreement) public agreements;
-    mapping(address => uint256) public nonces;
+    mapping(bytes32 => mapping(uint256 => bytes32)) public periodEvidenceRoots;
 
     // --- Events ---
     event AgreementCreated(
@@ -68,17 +73,26 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
         address indexed partyA,
         address indexed partyB,
         address tokenAddress,
-        uint256 amount,
+        uint256 totalAmount,
         bytes32 termsHash,
+        bytes32 scheduleHash,
+        uint256 periodCount,
         uint64 expiresAt
+    );
+
+    event PeriodReleased(
+        bytes32 indexed agreementId,
+        uint256 indexed periodIndex,
+        uint256 payoutAmount,
+        uint256 feeAmount,
+        bytes32 evidenceHash
     );
 
     event AgreementSettled(
         bytes32 indexed agreementId,
         address indexed partyB,
-        uint256 payoutAmount,
-        uint256 feeAmount,
-        bytes32 evidenceHash
+        uint256 totalPaid,
+        uint256 totalFee
     );
 
     event AgreementRefunded(
@@ -96,8 +110,9 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
 
     event DisputeResolved(
         bytes32 indexed agreementId,
+        uint256 indexed disputeId,
         address indexed partyA,
-        address indexed partyB,
+        address partyB,
         uint256 partyAAmount,
         uint256 partyBAmount
     );
@@ -161,6 +176,8 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
         address tokenAddress,
         uint256 amount,
         bytes32 termsHash,
+        bytes32 scheduleHash,
+        uint256 periodCount,
         uint64 durationSeconds,
         bytes32 salt
     ) external payable nonReentrant returns (bytes32 agreementId) {
@@ -168,6 +185,10 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
         require(partyB != address(0) && partyB != partyA, "DAX: Invalid counterparty");
         require(amount > 0, "DAX: Amount must be > 0");
         require(termsHash != bytes32(0), "DAX: Invalid terms hash");
+        require(periodCount > 0, "DAX: Period count must be > 0");
+        if (periodCount > 1) {
+            require(scheduleHash != bytes32(0), "DAX: Invalid schedule hash");
+        }
         require(durationSeconds >= 300, "DAX: Duration must be >= 5 mins");
 
         agreementId = keccak256(abi.encodePacked(partyA, partyB, termsHash, salt, block.chainid));
@@ -180,8 +201,12 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
             partyA: partyA,
             partyB: partyB,
             tokenAddress: tokenAddress,
-            amount: amount,
+            totalAmount: amount,
+            releasedAmount: 0,
             termsHash: termsHash,
+            scheduleHash: scheduleHash,
+            periodCount: periodCount,
+            currentPeriod: 0,
             createdAt: uint64(block.timestamp),
             expiresAt: expiresAt,
             state: AgreementState.ACTIVE,
@@ -200,7 +225,17 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
             require(balAfter - balBefore == amount, "DAX: Fee-on-transfer tokens not supported");
         }
 
-        emit AgreementCreated(agreementId, partyA, partyB, tokenAddress, amount, termsHash, expiresAt);
+        emit AgreementCreated(
+            agreementId,
+            partyA,
+            partyB,
+            tokenAddress,
+            amount,
+            termsHash,
+            scheduleHash,
+            periodCount,
+            expiresAt
+        );
     }
 
     /**
@@ -211,6 +246,8 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
         address tokenAddress,
         uint256 amount,
         bytes32 termsHash,
+        bytes32 scheduleHash,
+        uint256 periodCount,
         uint64 durationSeconds,
         bytes32 salt,
         uint256 permitDeadline,
@@ -228,6 +265,10 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
         require(partyB != address(0) && partyB != partyA, "DAX: Invalid counterparty");
         require(amount > 0, "DAX: Amount must be > 0");
         require(termsHash != bytes32(0), "DAX: Invalid terms hash");
+        require(periodCount > 0, "DAX: Period count must be > 0");
+        if (periodCount > 1) {
+            require(scheduleHash != bytes32(0), "DAX: Invalid schedule hash");
+        }
         require(durationSeconds >= 300, "DAX: Duration must be >= 5 mins");
 
         agreementId = keccak256(abi.encodePacked(partyA, partyB, termsHash, salt, block.chainid));
@@ -240,8 +281,12 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
             partyA: partyA,
             partyB: partyB,
             tokenAddress: tokenAddress,
-            amount: amount,
+            totalAmount: amount,
+            releasedAmount: 0,
             termsHash: termsHash,
+            scheduleHash: scheduleHash,
+            periodCount: periodCount,
+            currentPeriod: 0,
             createdAt: uint64(block.timestamp),
             expiresAt: expiresAt,
             state: AgreementState.ACTIVE,
@@ -254,31 +299,57 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
         uint256 balAfter = IERC20(tokenAddress).balanceOf(address(this));
         require(balAfter - balBefore == amount, "DAX: Fee-on-transfer tokens not supported");
 
-        emit AgreementCreated(agreementId, partyA, partyB, tokenAddress, amount, termsHash, expiresAt);
+        emit AgreementCreated(
+            agreementId,
+            partyA,
+            partyB,
+            tokenAddress,
+            amount,
+            termsHash,
+            scheduleHash,
+            periodCount,
+            expiresAt
+        );
     }
 
     /**
-     * @notice Submit evidence & release escrow to Party B.
-     * Enforces INV-01, INV-02, INV-03.
+     * @notice Submit evidence & release tranche escrow to Party B.
+     * Enforces INV-01, INV-02, INV-03, and Merkle schedule verification.
      * Requires EIP-712 Release Signature from Party A (Buyer). Party B CANNOT release unilaterally.
      */
     function submitAndRelease(
         bytes32 agreementId,
+        uint256 periodIndex,
+        uint256 releaseAmount,
         bytes32 evidenceHash,
         uint256 deadline,
+        bytes32[] calldata scheduleProof,
         bytes calldata buyerSignature
     ) external nonReentrant {
         Agreement storage ag = agreements[agreementId];
         require(ag.state == AgreementState.ACTIVE, "DAX: Agreement not active");
+        require(block.timestamp <= ag.expiresAt, "DAX: Agreement expired");
         require(block.timestamp <= deadline, "DAX: Signature deadline expired");
+        require(periodIndex == ag.currentPeriod, "DAX: Period out of sequence");
+        require(releaseAmount > 0, "DAX: Release amount must be > 0");
+        require(ag.releasedAmount + releaseAmount <= ag.totalAmount, "DAX: Amount exceeds total escrow");
 
-        // Verify Buyer (Party A) EIP-712 Signature
+        // Verify Merkle Schedule Commitment
+        if (ag.periodCount > 1) {
+            bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(agreementId, periodIndex, releaseAmount))));
+            require(MerkleProof.verify(scheduleProof, ag.scheduleHash, leaf), "DAX: Invalid schedule proof");
+        } else {
+            require(releaseAmount == ag.totalAmount, "DAX: Single release must equal total amount");
+        }
+
+        // Verify Buyer (Party A) EIP-712 Signature (Nonce-Free, bound to agreementId + periodIndex + releaseAmount)
         bytes32 structHash = keccak256(
             abi.encode(
                 BUYER_RELEASE_TYPEHASH,
                 agreementId,
+                periodIndex,
+                releaseAmount,
                 evidenceHash,
-                nonces[ag.partyA]++,
                 deadline
             )
         );
@@ -286,24 +357,35 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
         address signer = ECDSA.recover(digest, buyerSignature);
         require(signer == ag.partyA, "DAX: Invalid buyer release signature");
 
-        ag.state = AgreementState.SETTLED;
+        // State update
+        ag.currentPeriod++;
+        ag.releasedAmount += releaseAmount;
         ag.evidenceRoot = evidenceHash;
+        periodEvidenceRoots[agreementId][periodIndex] = evidenceHash;
 
-        uint256 feeAmount = (ag.amount * treasuryFeeBps) / 10000;
-        uint256 payoutAmount = ag.amount - feeAmount;
+        if (ag.currentPeriod == ag.periodCount || ag.releasedAmount == ag.totalAmount) {
+            ag.state = AgreementState.SETTLED;
+        }
+
+        uint256 feeAmount = (releaseAmount * treasuryFeeBps) / 10000;
+        uint256 payoutAmount = releaseAmount - feeAmount;
 
         _transferAsset(ag.tokenAddress, ag.partyB, payoutAmount);
         if (feeAmount > 0) {
             _transferAsset(ag.tokenAddress, payable(treasury), feeAmount);
         }
 
-        emit AgreementSettled(agreementId, ag.partyB, payoutAmount, feeAmount, evidenceHash);
+        emit PeriodReleased(agreementId, periodIndex, payoutAmount, feeAmount, evidenceHash);
+        if (ag.state == AgreementState.SETTLED) {
+            uint256 totalFee = (ag.totalAmount * treasuryFeeBps) / 10000;
+            emit AgreementSettled(agreementId, ag.partyB, ag.totalAmount - totalFee, totalFee);
+        }
     }
 
     /**
      * @notice Instant Mutual Cancellation.
      * Enforces INV-01, INV-02, INV-03, INV-06.
-     * Requires EIP-712 signatures from BOTH Party A and Party B. Refunds 100% to Party A without fee.
+     * Requires EIP-712 signatures from BOTH Party A and Party B. Refunds remaining escrow to Party A without fee.
      */
     function mutualCancel(
         bytes32 agreementId,
@@ -313,42 +395,36 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
     ) external nonReentrant {
         Agreement storage ag = agreements[agreementId];
         require(ag.state == AgreementState.ACTIVE, "DAX: Agreement not active");
+        require(block.timestamp <= ag.expiresAt, "DAX: Agreement expired");
         require(block.timestamp <= deadline, "DAX: Cancellation deadline expired");
 
-        bytes32 structHashA = keccak256(
+        bytes32 structHash = keccak256(
             abi.encode(
                 MUTUAL_CANCEL_TYPEHASH,
                 agreementId,
-                nonces[ag.partyA]++,
                 deadline
             )
         );
-        bytes32 structHashB = keccak256(
-            abi.encode(
-                MUTUAL_CANCEL_TYPEHASH,
-                agreementId,
-                nonces[ag.partyB]++,
-                deadline
-            )
-        );
+        bytes32 digest = _hashTypedDataV4(structHash);
 
-        address signerA = ECDSA.recover(_hashTypedDataV4(structHashA), sigA);
-        address signerB = ECDSA.recover(_hashTypedDataV4(structHashB), sigB);
+        address signerA = ECDSA.recover(digest, sigA);
+        address signerB = ECDSA.recover(digest, sigB);
 
         require(signerA == ag.partyA, "DAX: Invalid Party A cancel signature");
         require(signerB == ag.partyB, "DAX: Invalid Party B cancel signature");
 
         ag.state = AgreementState.REFUNDED;
 
-        _transferAsset(ag.tokenAddress, ag.partyA, ag.amount);
+        uint256 remainingAmount = ag.totalAmount - ag.releasedAmount;
+        _transferAsset(ag.tokenAddress, ag.partyA, remainingAmount);
 
-        emit AgreementRefunded(agreementId, ag.partyA, ag.amount, "Mutual Cancellation");
+        emit AgreementRefunded(agreementId, ag.partyA, remainingAmount, "Mutual Cancellation");
     }
 
     /**
      * @notice Claim Expired Agreement Refund.
      * Enforces INV-01, INV-05, INV-07.
-     * Allows Party A to claim 100% refund if deadline passed without completion or dispute.
+     * Allows Party A to claim remaining escrow refund if deadline passed without completion or dispute.
      */
     function claimExpiredRefund(bytes32 agreementId) external nonReentrant {
         Agreement storage ag = agreements[agreementId];
@@ -358,9 +434,10 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
 
         ag.state = AgreementState.REFUNDED;
 
-        _transferAsset(ag.tokenAddress, ag.partyA, ag.amount);
+        uint256 remainingAmount = ag.totalAmount - ag.releasedAmount;
+        _transferAsset(ag.tokenAddress, ag.partyA, remainingAmount);
 
-        emit AgreementRefunded(agreementId, ag.partyA, ag.amount, "Agreement Expired");
+        emit AgreementRefunded(agreementId, ag.partyA, remainingAmount, "Agreement Expired");
     }
 
     /**
@@ -370,6 +447,7 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
     function raiseDispute(bytes32 agreementId, bytes32 evidenceHash) external onlyParties(agreementId) nonReentrant {
         Agreement storage ag = agreements[agreementId];
         require(ag.state == AgreementState.ACTIVE, "DAX: Agreement not active");
+        require(block.timestamp <= ag.expiresAt, "DAX: Agreement expired");
 
         ag.state = AgreementState.DISPUTED;
         ag.evidenceRoot = evidenceHash;
@@ -382,15 +460,20 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
      * @notice Execute Dispute Resolution Verdict.
      * Enforces INV-02, INV-03, INV-08, INV-09.
      * Callable ONLY by the designated Dispute Court contract.
+     * Strictly arbitrates the unreleased remaining escrow.
      */
     function resolveDispute(
         bytes32 agreementId,
+        uint256 disputeId,
         uint256 partyAAmount,
         uint256 partyBAmount
     ) external onlyCourt nonReentrant {
         Agreement storage ag = agreements[agreementId];
         require(ag.state == AgreementState.DISPUTED, "DAX: Agreement not in dispute");
-        require(partyAAmount + partyBAmount == ag.amount, "DAX: Dispute amounts sum mismatch");
+        require(ag.disputeId == disputeId, "DAX: Dispute ID mismatch");
+
+        uint256 remainingAmount = ag.totalAmount - ag.releasedAmount;
+        require(partyAAmount + partyBAmount == remainingAmount, "DAX: Dispute amounts sum mismatch");
 
         ag.state = AgreementState.RESOLVED;
 
@@ -406,7 +489,7 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
             }
         }
 
-        emit DisputeResolved(agreementId, ag.partyA, ag.partyB, partyAAmount, partyBAmount);
+        emit DisputeResolved(agreementId, disputeId, ag.partyA, ag.partyB, partyAAmount, partyBAmount);
     }
 
     // --- Admin Governance Functions ---

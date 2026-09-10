@@ -11,6 +11,8 @@ interface IDAXAgreementTarget {
         address tokenAddress,
         uint256 amount,
         bytes32 termsHash,
+        bytes32 scheduleHash,
+        uint256 periodCount,
         uint64 durationSeconds,
         bytes32 salt
     ) external payable returns (bytes32 agreementId);
@@ -184,6 +186,8 @@ contract DAX_OfferPool is ReentrancyGuard {
             offer.tokenAddress,
             fillAmount,
             childTermsHash,
+            bytes32(0),
+            1,
             offer.durationSeconds,
             sliceSalt
         );

@@ -28,9 +28,11 @@ async function main() {
   const TREASURY_ADDRESS = process.env.TREASURY_ADDRESS || deployer.address;
   const FORWARDER_ADDRESS = process.env.FORWARDER_ADDRESS || deployer.address;
 
+  const PLATFORM_AUTHORITY = process.env.PLATFORM_AUTHORITY || deployer.address;
+
   console.log("\n1. Deploying DAX_Court...");
   const CourtFactory = await ethers.getContractFactory("DAX_Court");
-  const daxCourt = await CourtFactory.deploy(BASE_SEPOLIA_USDC);
+  const daxCourt = await CourtFactory.deploy(BASE_SEPOLIA_USDC, PLATFORM_AUTHORITY);
   await daxCourt.waitForDeployment();
   const courtAddr = await daxCourt.getAddress();
   console.log(` - DAX_Court Deployed at: ${courtAddr}`);

@@ -6,10 +6,12 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 interface IDAXAgreementTarget {
-    function resolveDispute(bytes32 agreementId, uint256 partyAAmount, uint256 partyBAmount) external;
+    function resolveDispute(bytes32 agreementId, uint256 disputeId, uint256 partyAAmount, uint256 partyBAmount) external;
     function agreements(bytes32 agreementId) external view returns (
         bytes32 id, address partyA, address partyB, address tokenAddress,
-        uint256 amount, bytes32 termsHash, uint64 createdAt, uint64 expiresAt,
+        uint256 totalAmount, uint256 releasedAmount, bytes32 termsHash,
+        bytes32 scheduleHash, uint256 periodCount, uint256 currentPeriod,
+        uint64 createdAt, uint64 expiresAt,
         uint8 state, bytes32 evidenceRoot, uint256 disputeId
     );
 }
@@ -17,31 +19,36 @@ interface IDAXAgreementTarget {
 /**
  * @title DAX_Court
  * @notice Permissionless, stake-secured Commit-Reveal Arbitration Engine for DAX V2 Agreements.
- * @dev Enforces 1 Juror = 1 Vote democratic arbitration with slashing penalties for minority voters.
+ * @dev Enforces 1 Juror = 1 Vote democratic arbitration with 3-vote quorum, binary verdicts,
+ * and restricted Platform Authority fallback if quorum fails.
  */
 contract DAX_Court is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     enum TrialState { NON_EXISTENT, JURY_FORMED, VOTING_COMMIT, VOTING_REVEAL, RESOLVED }
 
+    // Binary Verdict Constants
+    uint8 public constant BUYER_WINS = 1;
+    uint8 public constant SELLER_WINS = 2;
+
     struct Trial {
         uint256 disputeId;
         bytes32 agreementId;
         address partyA;
         address partyB;
-        uint256 escrowAmount;
+        uint256 escrowAmount;        // Remaining escrow at dispute time
         address tokenAddress;
         uint64 commitDeadline;
         uint64 revealDeadline;
         TrialState state;
-        uint8 winningVerdict; // 1: BUYER_WINS, 2: SELLER_WINS, 3: SPLIT_50_50
+        uint8 winningVerdict;        // 1: BUYER_WINS, 2: SELLER_WINS
         address[] assignedJurors;
         uint256 votesBuyer;
         uint256 votesSeller;
-        uint256 votesSplit;
     }
 
     IERC20 public immutable daxToken;
+    address public immutable platformAuthority;
     address public agreementContract;
     uint256 public minStake = 100 * 10**18; // 100 DAX tokens
     uint256 public slashingBps = 1000;      // 10% slashing penalty for losing voters
@@ -64,10 +71,13 @@ contract DAX_Court is ReentrancyGuard {
     event VoteCommitted(uint256 indexed disputeId, address indexed juror);
     event VoteRevealed(uint256 indexed disputeId, address indexed juror, uint8 verdict);
     event TrialFinalized(uint256 indexed disputeId, uint8 winningVerdict, uint256 partyAAmount, uint256 partyBAmount);
+    event PlatformAuthorityResolved(uint256 indexed disputeId, uint8 winningVerdict, uint256 partyAAmount, uint256 partyBAmount);
 
-    constructor(address _daxToken) {
+    constructor(address _daxToken, address _platformAuthority) {
         require(_daxToken != address(0), "DAX_Court: Invalid token");
+        require(_platformAuthority != address(0), "DAX_Court: Invalid platform authority");
         daxToken = IERC20(_daxToken);
+        platformAuthority = _platformAuthority;
     }
 
     function setAgreementContract(address _agreementContract) external {
@@ -108,7 +118,7 @@ contract DAX_Court is ReentrancyGuard {
     ) external nonReentrant returns (uint256) {
         (
             , address partyA, address partyB, address tokenAddress,
-            uint256 amount, , , ,
+            uint256 totalAmount, uint256 releasedAmount, , , , , , ,
             uint8 state, , uint256 disputeId
         ) = IDAXAgreementTarget(agreementContract).agreements(agreementId);
 
@@ -116,6 +126,9 @@ contract DAX_Court is ReentrancyGuard {
         require(disputeId > 0, "DAX_Court: Invalid dispute ID");
         require(trials[disputeId].state == TrialState.NON_EXISTENT, "DAX_Court: Trial already exists");
         require(stakersPool.length >= 3, "DAX_Court: Insufficient stakers pool");
+
+        uint256 remainingEscrow = totalAmount - releasedAmount;
+        require(remainingEscrow > 0, "DAX_Court: Zero remaining escrow");
 
         // Pseudo-random selection of 3 eligible jurors
         address[] memory selectedJurors = new address[](3);
@@ -151,7 +164,7 @@ contract DAX_Court is ReentrancyGuard {
             agreementId: agreementId,
             partyA: partyA,
             partyB: partyB,
-            escrowAmount: amount,
+            escrowAmount: remainingEscrow,
             tokenAddress: tokenAddress,
             commitDeadline: nowTs + 86400,   // 24 hours commit window
             revealDeadline: nowTs + 172800,  // 24 hours reveal window
@@ -159,8 +172,7 @@ contract DAX_Court is ReentrancyGuard {
             winningVerdict: 0,
             assignedJurors: selectedJurors,
             votesBuyer: 0,
-            votesSeller: 0,
-            votesSplit: 0
+            votesSeller: 0
         });
 
         emit TrialFormed(disputeId, agreementId, selectedJurors);
@@ -192,32 +204,27 @@ contract DAX_Court is ReentrancyGuard {
 
         bytes32 expectedHash = keccak256(abi.encodePacked(verdict, secret, msg.sender, disputeId));
         require(commitHashes[disputeId][msg.sender] == expectedHash, "DAX_Court: Commit hash mismatch");
-        require(verdict >= 1 && verdict <= 3, "DAX_Court: Invalid verdict code");
+        require(verdict == BUYER_WINS || verdict == SELLER_WINS, "DAX_Court: Invalid verdict code");
 
         hasRevealed[disputeId][msg.sender] = true;
         revealedVotes[disputeId][msg.sender] = verdict;
 
-        if (verdict == 1) t.votesBuyer++;
-        else if (verdict == 2) t.votesSeller++;
-        else if (verdict == 3) t.votesSplit++;
+        if (verdict == BUYER_WINS) t.votesBuyer++;
+        else if (verdict == SELLER_WINS) t.votesSeller++;
 
         emit VoteRevealed(disputeId, msg.sender, verdict);
     }
 
-    // --- Finalization & Slashing ---
+    // --- Jury Finalization & Slashing ---
 
     function finalizeDispute(uint256 disputeId) external nonReentrant {
         Trial storage t = trials[disputeId];
         require(t.state == TrialState.VOTING_REVEAL || t.state == TrialState.VOTING_COMMIT, "DAX_Court: Invalid trial state");
         require(block.timestamp > t.revealDeadline, "DAX_Court: Reveal window still open");
+        require(t.votesBuyer + t.votesSeller >= 3, "DAX_Court: Quorum not reached");
 
-        // Determine majority verdict
-        uint8 winning = 3; // Default SPLIT_50_50
-        if (t.votesBuyer > t.votesSeller && t.votesBuyer > t.votesSplit) {
-            winning = 1; // BUYER_WINS
-        } else if (t.votesSeller > t.votesBuyer && t.votesSeller > t.votesSplit) {
-            winning = 2; // SELLER_WINS
-        }
+        // Determine majority verdict (strictly binary: 3-0 or 2-1)
+        uint8 winning = t.votesBuyer > t.votesSeller ? BUYER_WINS : SELLER_WINS;
 
         t.winningVerdict = winning;
         t.state = TrialState.RESOLVED;
@@ -240,23 +247,52 @@ contract DAX_Court is ReentrancyGuard {
             }
         }
 
-        // Calculate settlement split
-        uint256 partyAAmount = 0;
-        uint256 partyBAmount = 0;
+        // Calculate settlement distribution
+        uint256 partyAAmount = winning == BUYER_WINS ? t.escrowAmount : 0;
+        uint256 partyBAmount = winning == SELLER_WINS ? t.escrowAmount : 0;
 
-        if (winning == 1) {
-            partyAAmount = t.escrowAmount;
-        } else if (winning == 2) {
-            partyBAmount = t.escrowAmount;
-        } else {
-            partyAAmount = t.escrowAmount / 2;
-            partyBAmount = t.escrowAmount - partyAAmount;
-        }
-
-        // Execute settlement on DAX_Agreement
-        IDAXAgreementTarget(agreementContract).resolveDispute(t.agreementId, partyAAmount, partyBAmount);
+        // Execute settlement on DAX_Agreement bound to disputeId
+        IDAXAgreementTarget(agreementContract).resolveDispute(t.agreementId, disputeId, partyAAmount, partyBAmount);
 
         emit TrialFinalized(disputeId, winning, partyAAmount, partyBAmount);
+    }
+
+    // --- Platform Authority Fallback ---
+
+    /**
+     * @notice Authoritative dispute resolution strictly available when jury fails to reach quorum.
+     * Callable ONLY by platformAuthority after reveal deadline passes with < 3 revealed votes.
+     */
+    function resolveByPlatformAuthority(uint256 disputeId, uint8 verdict) external nonReentrant {
+        require(msg.sender == platformAuthority, "DAX_Court: Platform Authority only");
+        Trial storage t = trials[disputeId];
+        require(t.state == TrialState.VOTING_REVEAL || t.state == TrialState.VOTING_COMMIT, "DAX_Court: Invalid trial state");
+        require(block.timestamp > t.revealDeadline, "DAX_Court: Reveal window still open");
+        require(t.votesBuyer + t.votesSeller < 3, "DAX_Court: Quorum already reached");
+        require(verdict == BUYER_WINS || verdict == SELLER_WINS, "DAX_Court: Invalid verdict");
+
+        t.winningVerdict = verdict;
+        t.state = TrialState.RESOLVED;
+
+        // Unlock all assigned juror trial locks & slash ghosting jurors (20%)
+        for (uint256 i = 0; i < t.assignedJurors.length; i++) {
+            address juror = t.assignedJurors[i];
+            if (activeTrialLocks[juror] > 0) {
+                activeTrialLocks[juror]--;
+            }
+
+            if (commitHashes[disputeId][juror] != bytes32(0) && !hasRevealed[disputeId][juror]) {
+                uint256 ghostSlash = (jurorStakes[juror] * 2000) / 10000;
+                jurorStakes[juror] -= ghostSlash;
+            }
+        }
+
+        uint256 partyAAmount = verdict == BUYER_WINS ? t.escrowAmount : 0;
+        uint256 partyBAmount = verdict == SELLER_WINS ? t.escrowAmount : 0;
+
+        IDAXAgreementTarget(agreementContract).resolveDispute(t.agreementId, disputeId, partyAAmount, partyBAmount);
+
+        emit PlatformAuthorityResolved(disputeId, verdict, partyAAmount, partyBAmount);
     }
 
     // --- Helpers ---
