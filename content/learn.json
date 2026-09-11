@@ -80,6 +80,17 @@
       "content": "We are thrilled to announce DAX V2.0!\n\nKey Highlights:\n• Arbitrum One L2 Escrow: Ultra-low transaction fees and sub-second settlement.\n• 0ms Zero-Latency Startup: Instant biometric unlock directly from Android Keystore without loading spinners.\n• Clean Product Separation: Dedicated Vault for your assets, and Evidence directly contextualized within Agreements.\n• Dynamic Content Service: Instant documentation and guides delivered serverlessly via GitHub public repositories."
     },
     {
+      "id": "gas-fees-and-platform-sponsorship",
+      "title": "Understanding Gas & Network Fees",
+      "subtitle": "How DAX keeps agreement transactions gasless and transparent",
+      "category": "Guides",
+      "date": "Sep 2026",
+      "readTime": "2 min read",
+      "iconName": "lightbulb",
+      "tags": ["gas", "fees", "network", "transparency"],
+      "content": "A simple guide to how blockchain network fees work on DAX.\n\n1. What is a Gas Fee?\n• Gas fees are computational network costs paid directly to blockchain validators (e.g. on Arbitrum, Base, or Ethereum) to process transactions.\n• Gas fees are NOT a charge by DAX — they go entirely to the underlying blockchain network.\n\n2. Gasless Agreements (Covered by Platform)\n• DAX sponsors the network gas for your agreement actions!\n• Creating, signing, releasing milestones, and mutual cancellations use gasless cryptographic signatures (EIP-712).\n• You sign securely in the app for $0.00 gas, while the platform takes care of the on-chain network submission.\n\n3. Cross-Chain Bridging\n• The only time network gas applies is when you bridge digital assets between different blockchains. External cross-chain bridge protocols require standard network transfer fees to move funds.\n\n4. Transparent Settlement\n• Standard escrow agreements are subject to a nominal protection fee only upon successful completion. Full refunds in cancellations or buyer dispute resolutions incur zero escrow fees."
+    },
+    {
       "id": "frequently-asked-questions",
       "title": "Frequently Asked Questions (FAQ)",
       "subtitle": "Quick answers to common questions about DAX",
@@ -87,8 +98,8 @@
       "date": "Sep 2026",
       "readTime": "3 min read",
       "iconName": "help",
-      "tags": ["faq", "questions", "fees", "recovery"],
-      "content": "Q: What if the counterparty stops responding?\nA: Agreements have expiration timestamps. If the other party does not deliver before expiry, you can trigger a refund or escalate to DAX Court.\n\nQ: Does DAX charge custody or trading fees?\nA: No. DAX is non-custodial and operates with zero protocol platform fees on standard escrow settlements.\n\nQ: Can I restore my vault on another phone?\nA: Yes! Enter your 12 secret recovery words into 'Restore Vault' to access your funds and accounts anywhere."
+      "tags": ["faq", "questions", "fees", "gas", "recovery"],
+      "content": "Q: Does DAX charge for gas on agreements?\nA: No! DAX sponsors transaction gas for key agreement actions (milestone releases, cancellations, and disputes) using gasless digital signatures. You pay $0.00 gas.\n\nQ: Are gas fees platform profit?\nA: Absolutely not. Gas fees are native network execution costs paid to blockchain validators. DAX never profits from gas fees.\n\nQ: Why are there fees when bridging?\nA: Moving assets between different blockchains relies on external cross-chain bridges, which have standard network transfer costs.\n\nQ: What if the counterparty stops responding?\nA: Agreements have expiration timestamps. If the other party does not deliver before expiry, you can claim a full fee-free refund or escalate to DAX Court.\n\nQ: Can I restore my vault on another phone?\nA: Yes! Enter your 12 secret recovery words into 'Restore Vault' to access your funds and accounts anywhere."
     }
   ]
 }

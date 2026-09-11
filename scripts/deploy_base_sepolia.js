@@ -30,14 +30,21 @@ async function main() {
 
   const PLATFORM_AUTHORITY = process.env.PLATFORM_AUTHORITY || deployer.address;
 
-  console.log("\n1. Deploying DAX_Court...");
+  console.log("\n1. Deploying DAX_Token (100,000,000 DAX)...");
+  const TokenFactory = await ethers.getContractFactory("DAX_Token");
+  const daxToken = await TokenFactory.deploy(deployer.address);
+  await daxToken.waitForDeployment();
+  const daxTokenAddr = await daxToken.getAddress();
+  console.log(` - DAX_Token Deployed at: ${daxTokenAddr}`);
+
+  console.log("\n2. Deploying DAX_Court...");
   const CourtFactory = await ethers.getContractFactory("DAX_Court");
-  const daxCourt = await CourtFactory.deploy(BASE_SEPOLIA_USDC, PLATFORM_AUTHORITY);
+  const daxCourt = await CourtFactory.deploy(daxTokenAddr, PLATFORM_AUTHORITY);
   await daxCourt.waitForDeployment();
   const courtAddr = await daxCourt.getAddress();
   console.log(` - DAX_Court Deployed at: ${courtAddr}`);
 
-  console.log("\n2. Deploying DAX_Agreement...");
+  console.log("\n3. Deploying DAX_Agreement...");
   const AgreementFactory = await ethers.getContractFactory("DAX_Agreement");
   const daxAgreement = await AgreementFactory.deploy(
     TREASURY_ADDRESS,
@@ -49,16 +56,40 @@ async function main() {
   const agreementAddr = await daxAgreement.getAddress();
   console.log(` - DAX_Agreement Deployed at: ${agreementAddr}`);
 
-  console.log("\n3. Linking Agreement Contract to Court...");
+  console.log("\n4. Linking Agreement Contract to Court...");
   const txLink = await daxCourt.setAgreementContract(agreementAddr);
   await txLink.wait();
   console.log(" - DAX_Court.setAgreementContract linked successfully!");
 
+  console.log("\n5. Deploying DAX_OfferPool...");
+  const OfferPoolFactory = await ethers.getContractFactory("DAX_OfferPool");
+  const daxOfferPool = await OfferPoolFactory.deploy(agreementAddr);
+  await daxOfferPool.waitForDeployment();
+  const offerPoolAddr = await daxOfferPool.getAddress();
+  console.log(` - DAX_OfferPool Deployed at: ${offerPoolAddr}`);
+
+  console.log("\n6. Deploying DAX_Swap...");
+  const SwapFactory = await ethers.getContractFactory("DAX_Swap");
+  const initialEthRate = ethers.parseEther("25000"); // 1 ETH = 25,000 DAX
+  const daxSwap = await SwapFactory.deploy(daxTokenAddr, TREASURY_ADDRESS, initialEthRate);
+  await daxSwap.waitForDeployment();
+  const swapAddr = await daxSwap.getAddress();
+  console.log(` - DAX_Swap Deployed at: ${swapAddr}`);
+
+  // Seed 10M DAX liquidity to swap gate
+  const initialLiquidity = ethers.parseEther("10000000");
+  const seedTx = await daxToken.transfer(swapAddr, initialLiquidity);
+  await seedTx.wait();
+  console.log(" - Seeded 10,000,000 DAX liquidity to swap gate!");
+
   const deploymentData = {
     network: "baseSepolia",
     chainId: Number(network.chainId),
-    agreementAddress: agreementAddr,
+    daxTokenAddress: daxTokenAddr,
     courtAddress: courtAddr,
+    agreementAddress: agreementAddr,
+    offerPoolAddress: offerPoolAddr,
+    swapAddress: swapAddr,
     usdcAddress: BASE_SEPOLIA_USDC,
     treasuryAddress: TREASURY_ADDRESS,
     forwarderAddress: FORWARDER_ADDRESS,
@@ -78,6 +109,7 @@ async function main() {
   console.log("\n=== DEPLOYMENT SUMMARY FOR BASE SEPOLIA ===");
   console.log(`DAX_Agreement:    ${agreementAddr}`);
   console.log(`DAX_Court:        ${courtAddr}`);
+  console.log(`DAX_OfferPool:    ${offerPoolAddr}`);
   console.log(`Base Sepolia USDC: ${BASE_SEPOLIA_USDC}`);
   console.log(`Treasury:         ${TREASURY_ADDRESS}`);
   console.log("===========================================\n");
