@@ -48,6 +48,8 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
         AgreementState state;        // Current state enum
         bytes32 evidenceRoot;        // Latest Merkle root / IPFS hash of committed evidence
         uint256 disputeId;           // Arbitration court reference ID (0 if none)
+        uint256 totalFeePaid;        // Cumulative fees actually transferred to treasury
+        uint16 feeBps;               // Immutable treasury fee Bps captured at creation
     }
 
     // --- Typehashes for EIP-712 ---
@@ -211,7 +213,9 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
             expiresAt: expiresAt,
             state: AgreementState.ACTIVE,
             evidenceRoot: bytes32(0),
-            disputeId: 0
+            disputeId: 0,
+            totalFeePaid: 0,
+            feeBps: uint16(treasuryFeeBps)
         });
 
         // Escrow Asset Deposit
@@ -291,7 +295,9 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
             expiresAt: expiresAt,
             state: AgreementState.ACTIVE,
             evidenceRoot: bytes32(0),
-            disputeId: 0
+            disputeId: 0,
+            totalFeePaid: 0,
+            feeBps: uint16(treasuryFeeBps)
         });
 
         uint256 balBefore = IERC20(tokenAddress).balanceOf(address(this));
@@ -363,12 +369,17 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
         ag.evidenceRoot = evidenceHash;
         periodEvidenceRoots[agreementId][periodIndex] = evidenceHash;
 
-        if (ag.currentPeriod == ag.periodCount || ag.releasedAmount == ag.totalAmount) {
+        if (ag.currentPeriod == ag.periodCount) {
+            require(ag.releasedAmount == ag.totalAmount, "DAX: Escrow amount remaining on final period");
             ag.state = AgreementState.SETTLED;
         }
 
-        uint256 feeAmount = (releaseAmount * treasuryFeeBps) / 10000;
+        uint256 feeAmount = (releaseAmount * ag.feeBps) / 10000;
+        if (feeAmount == 0 && releaseAmount > 0 && ag.feeBps > 0) {
+            feeAmount = 1; // Floor prevents zero-fee rounding on micro releases
+        }
         uint256 payoutAmount = releaseAmount - feeAmount;
+        ag.totalFeePaid += feeAmount;
 
         _transferAsset(ag.tokenAddress, ag.partyB, payoutAmount);
         if (feeAmount > 0) {
@@ -377,8 +388,7 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
 
         emit PeriodReleased(agreementId, periodIndex, payoutAmount, feeAmount, evidenceHash);
         if (ag.state == AgreementState.SETTLED) {
-            uint256 totalFee = (ag.totalAmount * treasuryFeeBps) / 10000;
-            emit AgreementSettled(agreementId, ag.partyB, ag.totalAmount - totalFee, totalFee);
+            emit AgreementSettled(agreementId, ag.partyB, ag.releasedAmount - ag.totalFeePaid, ag.totalFeePaid);
         }
     }
 
@@ -481,7 +491,11 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
             _transferAsset(ag.tokenAddress, ag.partyA, partyAAmount);
         }
         if (partyBAmount > 0) {
-            uint256 feeAmount = (partyBAmount * treasuryFeeBps) / 10000;
+            uint256 feeAmount = (partyBAmount * ag.feeBps) / 10000;
+            if (feeAmount == 0 && partyBAmount > 0 && ag.feeBps > 0) {
+                feeAmount = 1;
+            }
+            ag.totalFeePaid += feeAmount;
             uint256 netPartyB = partyBAmount - feeAmount;
             _transferAsset(ag.tokenAddress, ag.partyB, netPartyB);
             if (feeAmount > 0) {

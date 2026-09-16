@@ -1,12 +1,12 @@
 {
   "network": "arbitrum_one",
   "chainId": 42161,
-  "timestamp": "2026-09-14T10:28:19.913Z",
+  "timestamp": "2026-09-16T16:51:31.372Z",
   "deployer": "0x940E86bfdDb59e92093b7379e57Bb3F890587969",
   "daxTokenAddress": "0x1296C4b4e0960e9ddf1f84aF931D1258AfEc3918",
-  "courtAddress": "0x1C90de106abBCA56aCA44603F02eFE9B0C9B9601",
-  "agreementAddress": "0xeA3Dcc090E3C599f2d4c98E601197F2a291eA4B4",
-  "offerPoolAddress": "0x6d72884026EF4671E44De90C718A96A7A4a750C7",
+  "courtAddress": "0xf23c6255cf61564438f18418b62A1426c268aEbc",
+  "agreementAddress": "0x38988C56ea4933073bd78046ab9EBC3EA39565fF",
+  "offerPoolAddress": "0x8d0c5f762151a9D9110e294e2cE294C2F9eAEb56",
   "swapAddress": "0x15Aa74eBade0Db262c583F395883FB019f320b8d",
   "treasury": "0x940E86bfdDb59e92093b7379e57Bb3F890587969",
   "treasuryFeeBps": 25,
@@ -14,9 +14,9 @@
   "trustedForwarder": "0x0000000000000000000000000000000000000000",
   "explorer": {
     "daxToken": "https://arbiscan.io/address/0x1296C4b4e0960e9ddf1f84aF931D1258AfEc3918",
-    "court": "https://arbiscan.io/address/0x1C90de106abBCA56aCA44603F02eFE9B0C9B9601",
-    "agreement": "https://arbiscan.io/address/0xeA3Dcc090E3C599f2d4c98E601197F2a291eA4B4",
-    "offerPool": "https://arbiscan.io/address/0x6d72884026EF4671E44De90C718A96A7A4a750C7",
+    "court": "https://arbiscan.io/address/0xf23c6255cf61564438f18418b62A1426c268aEbc",
+    "agreement": "https://arbiscan.io/address/0x38988C56ea4933073bd78046ab9EBC3EA39565fF",
+    "offerPool": "https://arbiscan.io/address/0x8d0c5f762151a9D9110e294e2cE294C2F9eAEb56",
     "swap": "https://arbiscan.io/address/0x15Aa74eBade0Db262c583F395883FB019f320b8d"
   }
 }

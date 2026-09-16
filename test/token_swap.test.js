@@ -5,7 +5,7 @@ describe("DAX_Token & DAX_Swap Protocol Suite", function () {
   let daxToken, daxSwap, mockUsdt, mockUsdc, mockWbtc;
   let deployer, ledger, alice, bob;
 
-  const TOTAL_CAP = hre.ethers.parseEther("100000000"); // 100,000,000 DAX
+  const TOTAL_CAP = hre.ethers.parseEther("2000000000"); // 2,000,000,000 DAX
   const INITIAL_SWAP_RESERVE = hre.ethers.parseEther("10000000"); // 10,000,000 DAX for swap gate
   const ETH_RATE = hre.ethers.parseEther("25000"); // 1 ETH = 25,000 DAX ($2,500 ETH at $0.10/DAX)
   const USDT_RATE = hre.ethers.parseEther("10"); // 1 USDT = 10 DAX ($0.10/DAX)
@@ -55,7 +55,7 @@ describe("DAX_Token & DAX_Swap Protocol Suite", function () {
   });
 
   describe("DAX_Token Specification", function () {
-    it("Should have exact total supply of 100,000,000 DAX", async function () {
+    it("Should have exact total supply of 2,000,000,000 DAX", async function () {
       expect(await daxToken.totalSupply()).to.equal(TOTAL_CAP);
       expect(await daxToken.name()).to.equal("DAX Token");
       expect(await daxToken.symbol()).to.equal("DAX");
