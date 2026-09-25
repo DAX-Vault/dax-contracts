@@ -1,9 +1,9 @@
-# Privacy Policy for DAXVault
+# Privacy Policy for DAX
 
 **Last Updated:** September 8, 2026  
 **Effective Date:** September 8, 2026  
 
-This Privacy Policy explains how **DAXVault** ("we", "our", or "the App"), a self-custodial digital asset wallet and decentralized agreement utility developed by the **DAX Protocol** community, handles user data.
+This Privacy Policy explains how **DAX** ("we", "our", or "the App"), a self-custodial digital asset wallet and decentralized agreement utility developed by the **DAX Protocol** community, handles user data.
 
 We believe that privacy and data ownership are fundamental rights. Our architecture is designed so that **we do not collect, store, transmit, or monetize your personal information or private keys**.
 
@@ -11,7 +11,7 @@ We believe that privacy and data ownership are fundamental rights. Our architect
 
 ## 1. Core Principles: Zero-Knowledge & Self-Custody
 
-- **No Centralized Servers or Databases:** DAXVault does not operate user account databases, backend servers, or centralized custody infrastructure.
+- **No Centralized Servers or Databases:** DAX does not operate user account databases, backend servers, or centralized custody infrastructure.
 - **No Account Registration:** You do not provide your name, email address, phone number, government ID, or physical address to use the App.
 - **Self-Custodial Architecture:** Your private keys, seed phrases, and passwords never leave your device. You have exclusive ownership and custody of your digital assets.
 
@@ -19,7 +19,7 @@ We believe that privacy and data ownership are fundamental rights. Our architect
 
 ## 2. Information We Access and How It Is Used
 
-DAXVault accesses only the minimum device capabilities necessary to deliver core decentralized wallet and agreement verification functionality:
+DAX accesses only the minimum device capabilities necessary to deliver core decentralized wallet and agreement verification functionality:
 
 ### A. Camera (`android.permission.CAMERA`)
 - **Purpose:** Used exclusively to scan QR codes for wallet addresses, transaction requests, and digital agreement coordination.
@@ -68,7 +68,7 @@ To interact with decentralized networks, the App communicates with:
 - **Zero Server Retention:** Because we do not store your data on centralized servers, there is no remote user profile or database record to retain.
 - **Local Data Deletion:** You have full control over your local data at all times. You can immediately and permanently delete all local keys, preferences, and cached data by:
   1. Opening **Settings > Reset Vault** within the App, or
-  2. Clearing the App's storage via your device settings (**Settings > Apps > DAXVault > Clear Storage / Data**), or
+  2. Clearing the App's storage via your device settings (**Settings > Apps > DAX > Clear Storage / Data**), or
   3. Uninstalling the App.
 
 > **Warning:** Deleting your local vault without backing up your 12-word recovery seed phrase will result in permanent loss of access to your assets on the blockchain.
@@ -77,7 +77,7 @@ To interact with decentralized networks, the App communicates with:
 
 ## 7. Children's Privacy
 
-DAXVault is not directed to children under the age of 13 (or under 16 in certain jurisdictions), and we do not knowingly collect or solicit personal data from children.
+DAX is not directed to children under the age of 13 (or under 16 in certain jurisdictions), and we do not knowingly collect or solicit personal data from children.
 
 ---
 

@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="dax_logo.png" alt="DAXVault Logo" width="180" />
+  <img src="dax_logo.png" alt="DAX Protocol Logo" width="180" />
 </p>
 
-<h1 align="center">DAXVault</h1>
+<h1 align="center">DAX Protocol</h1>
 
 <p align="center">
   <strong>Universal Trustless Digital Agreement & Multi-Chain Settlement Protocol</strong>
@@ -25,13 +25,13 @@
 
 ## Overview
 
-**DAXVault** is a fully on-chain, self-custodial digital agreement and multi-chain settlement protocol. It enables counterparties to enter into deterministically enforced, non-custodial smart agreements featuring automated milestone fulfillment, deliverable verification, and decentralized community dispute arbitration — without centralized custodians, intermediaries, or account registration.
+**DAX Protocol** is a fully on-chain, self-custodial digital agreement and multi-chain settlement protocol. It enables counterparties to enter into deterministically enforced, non-custodial smart agreements featuring automated milestone fulfillment, deliverable verification, and decentralized community dispute arbitration — without centralized custodians, intermediaries, or account registration.
 
 The protocol operates with **zero centralized backends, zero user databases, and zero custodial holding**. The entire state machine runs deterministically on EVM-compatible networks (such as Base and Arbitrum), with a cross-platform client that verifies state and digital proofs directly against the blockchain.
 
 ### Core Guarantees
 
-| Challenge | DAXVault Protocol Guarantee |
+| Challenge | DAX Protocol Guarantee |
 |:---|:---|
 | **Custodial Risk** | **100% Self-Custodial** — Users retain exclusive control of private keys and assets; zero admin withdrawal or custodial access backdoors. |
 | **Privacy & Access Barriers** | **Permissionless & Pseudonymous** — Wallet address is the only identifier needed. No account registration or surveillance databases. |
@@ -44,11 +44,11 @@ The protocol operates with **zero centralized backends, zero user databases, and
 
 ## Architecture
 
-The DAXVault protocol consists of three core on-chain smart contracts designed around strict separation of concerns, formal security invariants, and gas-efficient execution:
+The DAX Protocol consists of three core on-chain smart contracts designed around strict separation of concerns, formal security invariants, and gas-efficient execution:
 
 ```mermaid
 flowchart TD
-    subgraph Core ["DAXVault Smart Contract Suite"]
+    subgraph Core ["DAX Protocol Smart Contract Suite"]
         direction TB
         OP["<b>DAX_OfferPool</b><br/>• Non-Custodial Multi-Slice Vault<br/>• Collateral Deposit & Slicing<br/>• Atomic Child Agreement Generation"]
         AG["<b>DAX_Agreement</b><br/>• Universal Agreement & Settlement Protocol<br/>• EIP-712 Typed Authorization<br/>• EIP-2612 Permit & ERC-2771 Meta-Tx<br/>• Immutable Terms & Evidence Hashing"]
@@ -58,7 +58,7 @@ flowchart TD
         AG <-->|Dispute Escalation & Verdicts| CT
     end
 
-    Client["<b>DAXVault Client</b><br/>(Self-Custodial Application)"]
+    Client["<b>DAX Mobile Client</b><br/>(Self-Custodial Application)"]
     Relay["<b>Decentralized Relayer / RPC</b><br/>(Gasless Forwarding / State Query)"]
 
     Client <-->|RPC / Signatures| Relay
