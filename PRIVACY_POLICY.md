@@ -83,7 +83,7 @@ DAXVault is not directed to children under the age of 13 (or under 16 in certain
 
 ## 8. Changes to This Privacy Policy
 
-We may update this Privacy Policy from time to time. Any changes will be reflected with an updated "Effective Date" at the top of this document and will be published directly to our open-source repository at [github.com/DAX-Vault/dax-contracts](https://github.com/DAX-Vault/dax-contracts).
+We may update this Privacy Policy from time to time. Any changes will be reflected with an updated "Effective Date" at the top of this document and will be published directly to our open-source repository at [github.com/DAXProtocol/dax](https://github.com/DAXProtocol/dax).
 
 ---
 
@@ -92,5 +92,5 @@ We may update this Privacy Policy from time to time. Any changes will be reflect
 If you have questions, feedback, or concerns regarding this Privacy Policy or our privacy practices, you can contact us:
 
 - **Email:** `ulterior024@gmail.com`
-- **GitHub Issues:** [https://github.com/DAX-Vault/dax-contracts/issues](https://github.com/DAX-Vault/dax-contracts/issues)
-- **Repository:** [https://github.com/DAX-Vault/dax-contracts](https://github.com/DAX-Vault/dax-contracts)
+- **GitHub Issues:** [https://github.com/DAXProtocol/dax/issues](https://github.com/DAXProtocol/dax/issues)
+- **Repository:** [https://github.com/DAXProtocol/dax](https://github.com/DAXProtocol/dax)

@@ -12,8 +12,8 @@
   <a href="https://basescan.org">
     <img src="https://img.shields.io/badge/Network-Base%20%7C%20Arbitrum-blue?logo=ethereum" alt="Networks" />
   </a>
-  <a href="https://github.com/DAX-Vault/dax-contracts/actions">
-    <img src="https://img.shields.io/badge/Tests-42%20Passing-brightgreen?logo=hardhat" alt="Tests" />
+  <a href="https://github.com/DAXProtocol/dax/actions">
+    <img src="https://img.shields.io/badge/Tests-87%20Passing-brightgreen?logo=hardhat" alt="Tests" />
   </a>
   <img src="https://img.shields.io/badge/Solidity-0.8.24-orange?logo=solidity" alt="Solidity" />
   <img src="https://img.shields.io/badge/EIP-712%20%2F%202612%20%2F%202771-purple" alt="EIP Standards" />
@@ -180,7 +180,7 @@ The protocol is designed for EVM-compatible layer-2 and layer-1 networks:
 ### Installation
 
 ```bash
-git clone https://github.com/DAX-Vault/dax-contracts.git
+git clone https://github.com/DAXProtocol/dax.git
 cd dax-contracts
 npm install
 cp .env.example .env
