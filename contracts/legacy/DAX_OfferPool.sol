@@ -47,6 +47,7 @@ contract DAX_OfferPool is ReentrancyGuard {
     address public immutable agreementContract;
 
     mapping(bytes32 => Offer) public offers;
+    mapping(bytes32 => string) public offerUris;
     mapping(bytes32 => bytes32[]) public childAgreements;
     uint256 public totalOffersCount;
 
@@ -58,7 +59,8 @@ contract DAX_OfferPool is ReentrancyGuard {
         uint256 totalAmount,
         uint256 minFillAmount,
         bytes32 offerTermsHash,
-        uint64 expiresAt
+        uint64 expiresAt,
+        string offerUri
     );
 
     event OfferSliceAccepted(
@@ -79,8 +81,7 @@ contract DAX_OfferPool is ReentrancyGuard {
     }
 
     /**
-     * @notice Deposit liquidity into non-custodial offer pool vault.
-     * Enforces fee-on-transfer protection via actual balance delta measurement.
+     * @notice Deposit liquidity into non-custodial offer pool vault (Backwards-compatible 7-arg signature).
      */
     function publishOffer(
         address tokenAddress,
@@ -90,7 +91,33 @@ contract DAX_OfferPool is ReentrancyGuard {
         uint64 durationSeconds,
         uint64 offerExpirySeconds,
         bytes32 salt
-    ) external nonReentrant returns (bytes32 offerId) {
+    ) external returns (bytes32 offerId) {
+        return publishOfferWithMetadata(
+            tokenAddress,
+            totalAmount,
+            minFillAmount,
+            offerTermsHash,
+            durationSeconds,
+            offerExpirySeconds,
+            salt,
+            ""
+        );
+    }
+
+    /**
+     * @notice Deposit liquidity into non-custodial offer pool vault with on-chain metadata URI.
+     * Enforces fee-on-transfer protection via actual balance delta measurement.
+     */
+    function publishOfferWithMetadata(
+        address tokenAddress,
+        uint256 totalAmount,
+        uint256 minFillAmount,
+        bytes32 offerTermsHash,
+        uint64 durationSeconds,
+        uint64 offerExpirySeconds,
+        bytes32 salt,
+        string memory offerUri
+    ) public nonReentrant returns (bytes32 offerId) {
         require(tokenAddress != address(0), "DAX_OfferPool: Invalid token");
         require(totalAmount > 0, "DAX_OfferPool: Total amount must be > 0");
         require(minFillAmount > 0 && minFillAmount <= totalAmount, "DAX_OfferPool: Invalid minFillAmount");
@@ -124,6 +151,10 @@ contract DAX_OfferPool is ReentrancyGuard {
             state: OfferState.OPEN
         });
 
+        if (bytes(offerUri).length > 0) {
+            offerUris[offerId] = offerUri;
+        }
+
         totalOffersCount++;
 
         emit OfferPublished(
@@ -133,7 +164,8 @@ contract DAX_OfferPool is ReentrancyGuard {
             actualAmount,
             minFillAmount,
             offerTermsHash,
-            expiresAt
+            expiresAt,
+            offerUri
         );
     }
 

@@ -108,10 +108,98 @@ describe("DAX_Agreement Universal Protocol Tests", function () {
       const receipt = await tx.wait();
       const event = receipt.logs.find(l => l.fragment && l.fragment.name === "AgreementCreated");
       const agreementId = event.args.agreementId;
-
       const ag = await daxAgreement.agreements(agreementId);
       expect(ag.totalAmount).to.equal(ethAmount);
       expect(ag.state).to.equal(1); // ACTIVE
+    });
+
+    it("Should create a PENDING agreement on-chain with metadata URI without token transfer, then deposit escrow to activate", async function () {
+      const contractAddr = await daxAgreement.getAddress();
+      const salt = ethers.randomBytes(32);
+      const durationSeconds = 86400 * 14;
+      const metadata = JSON.stringify({
+        scope: "Full-Stack Web App",
+        description: "Build decentralized agreement portal",
+        category: "service"
+      });
+
+      const partyABalanceBefore = await mockUSDC.balanceOf(partyA.address);
+
+      // 1. Create in PENDING state (zero tokens transferred)
+      const createTx = await daxAgreement.connect(partyA).createAgreement(
+        partyB.address,
+        await mockUSDC.getAddress(),
+        AGREEMENT_AMOUNT,
+        TERMS_HASH,
+        ethers.ZeroHash,
+        1,
+        durationSeconds,
+        salt,
+        metadata
+      );
+
+      const receipt = await createTx.wait();
+      const event = receipt.logs.find(l => l.fragment && l.fragment.name === "AgreementCreated");
+      const agreementId = event.args.agreementId;
+
+      // Assert tokens were NOT transferred yet
+      const partyABalanceAfterCreate = await mockUSDC.balanceOf(partyA.address);
+      expect(partyABalanceAfterCreate).to.equal(partyABalanceBefore);
+
+      // Assert on-chain state is PENDING (6)
+      const ag = await daxAgreement.agreements(agreementId);
+      expect(ag.state).to.equal(6); // PENDING
+      expect(ag.partyA).to.equal(partyA.address);
+      expect(ag.partyB).to.equal(partyB.address);
+      expect(ag.expiresAt).to.equal(0); // Pending agreement has not started deliverable countdown
+
+      // Assert metadata URI is accessible on-chain
+      const storedUri = await daxAgreement.agreementUris(agreementId);
+      expect(storedUri).to.equal(metadata);
+
+      // 2. Deposit escrow tokens to activate
+      await mockUSDC.connect(partyA).approve(contractAddr, AGREEMENT_AMOUNT);
+      const fundTx = await daxAgreement.connect(partyA).depositEscrow(agreementId);
+      await fundTx.wait();
+
+      // Assert tokens are now transferred into contract
+      const partyABalanceAfterFund = await mockUSDC.balanceOf(partyA.address);
+      expect(partyABalanceAfterFund).to.equal(partyABalanceBefore - AGREEMENT_AMOUNT);
+
+      // Assert agreement is now ACTIVE (1) and deliverable countdown starts from escrow deposit
+      const agFunded = await daxAgreement.agreements(agreementId);
+      expect(agFunded.state).to.equal(1); // ACTIVE
+      expect(agFunded.expiresAt).to.equal(agFunded.createdAt + BigInt(durationSeconds));
+
+      // Assert Party A CANNOT cancel after funding (counterparties are now bound)
+      await expect(
+        daxAgreement.connect(partyA).cancelPendingAgreement(agreementId)
+      ).to.be.revertedWith("DAX: Agreement not pending");
+    });
+
+    it("Should allow Party A to cancel a PENDING agreement before escrow is deposited", async function () {
+      const salt = ethers.randomBytes(32);
+      const durationSeconds = 86400 * 14;
+
+      const createTx = await daxAgreement.connect(partyA).createAgreement(
+        partyB.address,
+        await mockUSDC.getAddress(),
+        AGREEMENT_AMOUNT,
+        TERMS_HASH,
+        ethers.ZeroHash,
+        1,
+        durationSeconds,
+        salt,
+        ""
+      );
+      const receipt = await createTx.wait();
+      const event = receipt.logs.find(l => l.fragment && l.fragment.name === "AgreementCreated");
+      const agreementId = event.args.agreementId;
+
+      await daxAgreement.connect(partyA).cancelPendingAgreement(agreementId);
+
+      const ag = await daxAgreement.agreements(agreementId);
+      expect(ag.state).to.equal(5); // REFUNDED
     });
   });
 

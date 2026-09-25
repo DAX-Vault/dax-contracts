@@ -28,7 +28,8 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
         SETTLED,      // 2: Completed & Fully Released
         DISPUTED,     // 3: Escalated to Dispute Arbitration
         RESOLVED,     // 4: Dispute Verdict Executed
-        REFUNDED      // 5: Cancelled or Expired Refund
+        REFUNDED,     // 5: Cancelled or Expired Refund
+        PENDING       // 6: Registered On-Chain, Awaiting Escrow Deposit
     }
 
     // --- Agreement Core Data Struct ---
@@ -67,6 +68,8 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
     address public disputeCourt;
 
     mapping(bytes32 => Agreement) public agreements;
+    mapping(bytes32 => string) public agreementUris;
+    mapping(bytes32 => uint64) public agreementDurations;
     mapping(bytes32 => mapping(uint256 => bytes32)) public periodEvidenceRoots;
 
     // --- Events ---
@@ -79,7 +82,14 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
         bytes32 termsHash,
         bytes32 scheduleHash,
         uint256 periodCount,
-        uint64 expiresAt
+        uint64 expiresAt,
+        string metadataUri
+    );
+
+    event AgreementFunded(
+        bytes32 indexed agreementId,
+        address indexed funder,
+        uint256 amount
     );
 
     event PeriodReleased(
@@ -170,8 +180,7 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
     // --- Core Functions ---
 
     /**
-     * @notice Atomic Agreement Creation & Funding (Standard ERC-20 approve path or native ETH).
-     * Enforces INV-03, INV-04, INV-05, INV-10.
+     * @notice Atomic Agreement Creation & Funding (Backwards-compatible 8-arg signature).
      */
     function createAndFundAgreement(
         address payable partyB,
@@ -182,7 +191,35 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
         uint256 periodCount,
         uint64 durationSeconds,
         bytes32 salt
-    ) external payable nonReentrant returns (bytes32 agreementId) {
+    ) external payable returns (bytes32 agreementId) {
+        return createAndFundAgreementWithMetadata(
+            partyB,
+            tokenAddress,
+            amount,
+            termsHash,
+            scheduleHash,
+            periodCount,
+            durationSeconds,
+            salt,
+            ""
+        );
+    }
+
+    /**
+     * @notice Atomic Agreement Creation & Funding with on-chain metadata URI (1-Tx Escrow Lock).
+     * Enforces INV-03, INV-04, INV-05, INV-10.
+     */
+    function createAndFundAgreementWithMetadata(
+        address payable partyB,
+        address tokenAddress,
+        uint256 amount,
+        bytes32 termsHash,
+        bytes32 scheduleHash,
+        uint256 periodCount,
+        uint64 durationSeconds,
+        bytes32 salt,
+        string memory metadataUri
+    ) public payable nonReentrant returns (bytes32 agreementId) {
         address payable partyA = payable(_msgSender());
         require(partyB != address(0) && partyB != partyA, "DAX: Invalid counterparty");
         require(amount > 0, "DAX: Amount must be > 0");
@@ -197,6 +234,7 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
         require(agreements[agreementId].state == AgreementState.NON_EXISTENT, "DAX: Agreement ID collision");
 
         uint64 expiresAt = uint64(block.timestamp + durationSeconds);
+        agreementDurations[agreementId] = durationSeconds;
 
         agreements[agreementId] = Agreement({
             agreementId: agreementId,
@@ -218,6 +256,10 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
             feeBps: uint16(treasuryFeeBps)
         });
 
+        if (bytes(metadataUri).length > 0) {
+            agreementUris[agreementId] = metadataUri;
+        }
+
         // Escrow Asset Deposit
         if (tokenAddress == address(0)) {
             require(msg.value == amount, "DAX: ETH amount mismatch");
@@ -238,8 +280,121 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
             termsHash,
             scheduleHash,
             periodCount,
-            expiresAt
+            expiresAt,
+            metadataUri
         );
+        emit AgreementFunded(agreementId, partyA, amount);
+    }
+
+    /**
+     * @notice Register agreement on-chain in PENDING state without upfront token deposit.
+     * Allows counterparties to discover, review, and accept on-chain before escrow lock.
+     */
+    function createAgreement(
+        address payable partyB,
+        address tokenAddress,
+        uint256 amount,
+        bytes32 termsHash,
+        bytes32 scheduleHash,
+        uint256 periodCount,
+        uint64 durationSeconds,
+        bytes32 salt,
+        string memory metadataUri
+    ) external returns (bytes32 agreementId) {
+        address payable partyA = payable(_msgSender());
+        require(partyB != address(0) && partyB != partyA, "DAX: Invalid counterparty");
+        require(amount > 0, "DAX: Amount must be > 0");
+        require(termsHash != bytes32(0), "DAX: Invalid terms hash");
+        require(periodCount > 0, "DAX: Period count must be > 0");
+        if (periodCount > 1) {
+            require(scheduleHash != bytes32(0), "DAX: Invalid schedule hash");
+        }
+        require(durationSeconds >= 300, "DAX: Duration must be >= 5 mins");
+
+        agreementId = keccak256(abi.encodePacked(partyA, partyB, termsHash, salt, block.chainid));
+        require(agreements[agreementId].state == AgreementState.NON_EXISTENT, "DAX: Agreement ID collision");
+
+        agreementDurations[agreementId] = durationSeconds;
+
+        agreements[agreementId] = Agreement({
+            agreementId: agreementId,
+            partyA: partyA,
+            partyB: partyB,
+            tokenAddress: tokenAddress,
+            totalAmount: amount,
+            releasedAmount: 0,
+            termsHash: termsHash,
+            scheduleHash: scheduleHash,
+            periodCount: periodCount,
+            currentPeriod: 0,
+            createdAt: uint64(block.timestamp),
+            expiresAt: 0,
+            state: AgreementState.PENDING,
+            evidenceRoot: bytes32(0),
+            disputeId: 0,
+            totalFeePaid: 0,
+            feeBps: uint16(treasuryFeeBps)
+        });
+
+        if (bytes(metadataUri).length > 0) {
+            agreementUris[agreementId] = metadataUri;
+        }
+
+        emit AgreementCreated(
+            agreementId,
+            partyA,
+            partyB,
+            tokenAddress,
+            amount,
+            termsHash,
+            scheduleHash,
+            periodCount,
+            0,
+            metadataUri
+        );
+    }
+
+    /**
+     * @notice Deposit escrow tokens for a PENDING agreement to activate it.
+     * Countdown timer starts the moment escrow is deposited.
+     */
+    function depositEscrow(bytes32 agreementId) external payable nonReentrant {
+        Agreement storage ag = agreements[agreementId];
+        require(ag.state == AgreementState.PENDING, "DAX: Agreement not pending");
+        require(_msgSender() == ag.partyA, "DAX: Only partyA can deposit escrow");
+
+        uint64 duration = agreementDurations[agreementId];
+        if (duration == 0) {
+            duration = ag.expiresAt > ag.createdAt ? ag.expiresAt - ag.createdAt : 86400 * 14;
+        }
+
+        ag.state = AgreementState.ACTIVE;
+        ag.createdAt = uint64(block.timestamp);
+        ag.expiresAt = uint64(block.timestamp + duration);
+
+        if (ag.tokenAddress == address(0)) {
+            require(msg.value == ag.totalAmount, "DAX: ETH amount mismatch");
+        } else {
+            require(msg.value == 0, "DAX: ETH not accepted for token escrow");
+            uint256 balBefore = IERC20(ag.tokenAddress).balanceOf(address(this));
+            IERC20(ag.tokenAddress).safeTransferFrom(ag.partyA, address(this), ag.totalAmount);
+            uint256 balAfter = IERC20(ag.tokenAddress).balanceOf(address(this));
+            require(balAfter - balBefore == ag.totalAmount, "DAX: Fee-on-transfer tokens not supported");
+        }
+
+        emit AgreementFunded(agreementId, _msgSender(), ag.totalAmount);
+    }
+
+    /**
+     * @notice Cancel a PENDING agreement before escrow is deposited.
+     */
+    function cancelPendingAgreement(bytes32 agreementId) external {
+        Agreement storage ag = agreements[agreementId];
+        require(ag.state == AgreementState.PENDING, "DAX: Agreement not pending");
+        require(_msgSender() == ag.partyA, "DAX: Only partyA can cancel pending agreement");
+
+        ag.state = AgreementState.REFUNDED;
+        emit AgreementRefunded(agreementId, ag.partyA, 0, "Cancelled pending agreement");
     }
 
     /**
@@ -279,6 +434,7 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
         require(agreements[agreementId].state == AgreementState.NON_EXISTENT, "DAX: Agreement ID collision");
 
         uint64 expiresAt = uint64(block.timestamp + durationSeconds);
+        agreementDurations[agreementId] = durationSeconds;
 
         agreements[agreementId] = Agreement({
             agreementId: agreementId,
@@ -314,7 +470,8 @@ contract DAX_Agreement is Context, ReentrancyGuard, EIP712, ERC2771Context {
             termsHash,
             scheduleHash,
             periodCount,
-            expiresAt
+            expiresAt,
+            ""
         );
     }
 

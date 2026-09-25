@@ -1,6 +1,9 @@
 import hre from "hardhat";
 import fs from "fs";
 import path from "path";
+import dns from "dns";
+
+dns.setDefaultResultOrder("ipv4first");
 
 async function main() {
   const [deployer] = await hre.ethers.getSigners();
@@ -31,13 +34,18 @@ async function main() {
   console.log("Platform Authority      :", platformAuthority);
   console.log("Protocol Escrow Fee     : 0.25% (25 bps)");
 
-  // 1. Deploy canonical DAX_Token (2,000,000,000 DAX fixed cap + burnable)
-  console.log("\n1. Deploying DAX_Token (2,000,000,000 DAX Hard Cap)...");
-  const DAX_Token = await hre.ethers.getContractFactory("DAX_Token");
-  const daxToken = await DAX_Token.deploy(deployer.address);
-  await daxToken.waitForDeployment();
-  const daxTokenAddress = await daxToken.getAddress();
-  console.log("✅ DAX_Token (2 Billion) deployed at:", daxTokenAddress);
+  // 1. Canonical DAX_Token
+  let daxTokenAddress = process.env.DAX_TOKEN_ADDRESS || "0x1296C4b4e0960e9ddf1f84aF931D1258AfEc3918";
+  if (process.env.REDEPLOY_TOKEN === "true" || chainId === 31337) {
+    console.log("\n1. Deploying DAX_Token (2,000,000,000 DAX Hard Cap)...");
+    const DAX_Token = await hre.ethers.getContractFactory("DAX_Token");
+    const daxToken = await DAX_Token.deploy(deployer.address);
+    await daxToken.waitForDeployment();
+    daxTokenAddress = await daxToken.getAddress();
+    console.log("✅ DAX_Token (2 Billion) deployed at:", daxTokenAddress);
+  } else {
+    console.log("\n1. Reusing canonical DAX_Token at:", daxTokenAddress);
+  }
 
   // 2. Deploy DAX_Court (Juror staking strictly with canonical DAX_Token)
   console.log("\n2. Deploying DAX_Court (Canonical Arbitrum Hub)...");
@@ -84,7 +92,8 @@ async function main() {
   console.log("✅ DAX_Swap deployed at:", swapAddress);
 
   // 7. Balance confirmation
-  const finalDeployerBal = await daxToken.balanceOf(deployer.address);
+  const daxTokenContract = await hre.ethers.getContractAt("DAX_Token", daxTokenAddress);
+  const finalDeployerBal = await daxTokenContract.balanceOf(deployer.address);
   console.log("\n7. Final Deployer DAX Token Balance:", hre.ethers.formatEther(finalDeployerBal), "DAX");
 
   // 8. Save Deployment Metadata

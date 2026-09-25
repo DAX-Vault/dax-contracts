@@ -1,0 +1,23 @@
+{
+  "network": "arbitrum",
+  "chainId": 42161,
+  "deploymentBlock": 508721389,
+  "timestamp": "2026-09-25T09:30:31.398Z",
+  "proxies": {
+    "agreement": "0xF5443034c8F2ee3003e34aDA4dfA0005664500E4",
+    "offerPool": "0x66ab4a808A38c3d3b62DFAcdA9f5f1A0E7A48F7f",
+    "court": "0x351746C0EC5DbF44D102734acc91d0D94a3242AE"
+  },
+  "implementations": {
+    "agreement": "0x4E1DbB76f6967De7962387151C0b0A14fc5bEdcD",
+    "offerPool": "0xeD1f30eA6cb6f6Ad3b0091388eebdA4b15337C94",
+    "court": "0x5189976D435Df9f931D336d5a9733a9EDFBB9b48"
+  },
+  "config": {
+    "treasury": "0x940E86bfdDb59e92093b7379e57Bb3F890587969",
+    "platformAuthority": "0x940E86bfdDb59e92093b7379e57Bb3F890587969",
+    "treasuryFeeBps": 25,
+    "daxToken": "0x1296C4b4e0960e9ddf1f84aF931D1258AfEc3918",
+    "trustedForwarder": "0x0000000000000000000000000000000000000000"
+  }
+}

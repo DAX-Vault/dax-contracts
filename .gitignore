@@ -23,3 +23,6 @@ coverage.json
 
 # Slither reports (keep the source but not generated reports)
 slither_report.txt
+
+# OpenZeppelin local test deployments
+.openzeppelin/unknown-*.json

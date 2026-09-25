@@ -1,0 +1,324 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+import "../utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
+interface IDAXAgreementTarget {
+    function resolveDispute(bytes32 agreementId, uint256 disputeId, uint256 partyAAmount, uint256 partyBAmount) external;
+    function agreements(bytes32 agreementId) external view returns (
+        bytes32 id, address partyA, address partyB, address tokenAddress,
+        uint256 totalAmount, uint256 releasedAmount, bytes32 termsHash,
+        bytes32 scheduleHash, uint256 periodCount, uint256 currentPeriod,
+        uint64 createdAt, uint64 expiresAt,
+        uint8 state, bytes32 evidenceRoot, uint256 disputeId
+    );
+}
+
+/**
+ * @title DAX_CourtUpgradeable
+ * @notice Permissionless, stake-secured Commit-Reveal Arbitration Engine for DAX Agreements (UUPS Upgradeable).
+ * @dev Enforces 1 Juror = 1 Vote democratic arbitration with 3-vote quorum, binary verdicts,
+ * and restricted Platform Authority fallback if quorum fails.
+ */
+contract DAX_CourtUpgradeable is
+    Initializable,
+    OwnableUpgradeable,
+    ReentrancyGuardUpgradeable,
+    UUPSUpgradeable
+{
+    using SafeERC20 for IERC20;
+
+    enum TrialState { NON_EXISTENT, JURY_FORMED, VOTING_COMMIT, VOTING_REVEAL, RESOLVED }
+
+    // Binary Verdict Constants
+    uint8 public constant BUYER_WINS = 1;
+    uint8 public constant SELLER_WINS = 2;
+
+    struct Trial {
+        uint256 disputeId;
+        bytes32 agreementId;
+        address partyA;
+        address partyB;
+        uint256 escrowAmount;        // Remaining escrow at dispute time
+        address tokenAddress;
+        uint64 commitDeadline;
+        uint64 revealDeadline;
+        TrialState state;
+        uint8 winningVerdict;        // 1: BUYER_WINS, 2: SELLER_WINS
+        address[] assignedJurors;
+        uint256 votesBuyer;
+        uint256 votesSeller;
+    }
+
+    IERC20 public daxToken;
+    address public platformAuthority;
+    address public agreementContract;
+    uint256 public minStake;
+    uint256 public slashingBps;
+
+    // Juror Staking Registry
+    mapping(address => uint256) public jurorStakes;
+    mapping(address => uint256) public activeTrialLocks;
+    address[] public stakersPool;
+
+    // Trial Records
+    mapping(uint256 => Trial) public trials;
+    mapping(uint256 => mapping(address => bytes32)) public commitHashes;
+    mapping(uint256 => mapping(address => uint8)) public revealedVotes;
+    mapping(uint256 => mapping(address => bool)) public hasRevealed;
+
+    // Events
+    event JurorStaked(address indexed juror, uint256 amount);
+    event JurorUnstaked(address indexed juror, uint256 amount);
+    event TrialFormed(uint256 indexed disputeId, bytes32 indexed agreementId, address[] jurors);
+    event VoteCommitted(uint256 indexed disputeId, address indexed juror);
+    event VoteRevealed(uint256 indexed disputeId, address indexed juror, uint8 verdict);
+    event TrialFinalized(uint256 indexed disputeId, uint8 winningVerdict, uint256 partyAAmount, uint256 partyBAmount);
+    event PlatformAuthorityResolved(uint256 indexed disputeId, uint8 winningVerdict, uint256 partyAAmount, uint256 partyBAmount);
+    event AgreementContractUpdated(address indexed newAgreementContract);
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(
+        address _daxToken,
+        address _platformAuthority,
+        address _agreementContract,
+        address _initialOwner
+    ) external initializer {
+        require(_daxToken != address(0), "DAX_Court: Invalid token");
+        require(_platformAuthority != address(0), "DAX_Court: Invalid platform authority");
+
+        __Ownable_init(_initialOwner);
+        __ReentrancyGuard_init();
+
+        daxToken = IERC20(_daxToken);
+        platformAuthority = _platformAuthority;
+        agreementContract = _agreementContract;
+        minStake = 100 * 10**18;
+        slashingBps = 1000;
+    }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    function setAgreementContract(address _agreementContract) external onlyOwner {
+        agreementContract = _agreementContract;
+        emit AgreementContractUpdated(_agreementContract);
+    }
+
+    // --- Juror Staking ---
+
+    function stake(uint256 amount) external nonReentrant {
+        require(amount > 0, "DAX_Court: Stake amount must be > 0");
+        uint256 balBefore = daxToken.balanceOf(address(this));
+        daxToken.safeTransferFrom(msg.sender, address(this), amount);
+        uint256 balAfter = daxToken.balanceOf(address(this));
+        uint256 actualAmount = balAfter - balBefore;
+
+        if (jurorStakes[msg.sender] == 0) {
+            stakersPool.push(msg.sender);
+        }
+        jurorStakes[msg.sender] += actualAmount;
+        emit JurorStaked(msg.sender, actualAmount);
+    }
+
+    function unstake(uint256 amount) external nonReentrant {
+        require(jurorStakes[msg.sender] >= amount, "DAX_Court: Insufficient stake");
+        require(activeTrialLocks[msg.sender] == 0, "DAX_Court: Stake locked in active trials");
+        require(jurorStakes[msg.sender] - amount >= minStake || jurorStakes[msg.sender] - amount == 0, "DAX_Court: Below minStake requirement");
+
+        jurorStakes[msg.sender] -= amount;
+        daxToken.safeTransfer(msg.sender, amount);
+        emit JurorUnstaked(msg.sender, amount);
+    }
+
+    // --- Jury Formation & Dispute Initiation ---
+
+    function initializeTrial(
+        bytes32 agreementId
+    ) external nonReentrant returns (uint256) {
+        (
+            , address partyA, address partyB, address tokenAddress,
+            uint256 totalAmount, uint256 releasedAmount, , , , , , ,
+            uint8 state, , uint256 disputeId
+        ) = IDAXAgreementTarget(agreementContract).agreements(agreementId);
+
+        require(state == 3, "DAX_Court: Agreement not in DISPUTED state");
+        require(disputeId > 0, "DAX_Court: Invalid dispute ID");
+        require(trials[disputeId].state == TrialState.NON_EXISTENT, "DAX_Court: Trial already exists");
+        require(stakersPool.length >= 3, "DAX_Court: Insufficient stakers pool");
+
+        uint256 remainingEscrow = totalAmount - releasedAmount;
+        require(remainingEscrow > 0, "DAX_Court: Zero remaining escrow");
+
+        // Pseudo-random selection of 3 eligible jurors
+        address[] memory selectedJurors = new address[](3);
+        uint256 found = 0;
+        uint256 seed = uint256(keccak256(abi.encodePacked(block.timestamp, block.prevrandao, agreementId)));
+
+        for (uint256 i = 0; i < stakersPool.length && found < 3; i++) {
+            uint256 candidateIdx = (seed + i) % stakersPool.length;
+            address candidate = stakersPool[candidateIdx];
+
+            if (candidate != partyA && candidate != partyB && jurorStakes[candidate] >= minStake) {
+                bool alreadySelected = false;
+                for (uint256 j = 0; j < found; j++) {
+                    if (selectedJurors[j] == candidate) {
+                        alreadySelected = true;
+                        break;
+                    }
+                }
+                if (!alreadySelected) {
+                    selectedJurors[found] = candidate;
+                    activeTrialLocks[candidate]++;
+                    found++;
+                }
+            }
+        }
+
+        require(found == 3, "DAX_Court: Could not find 3 eligible jurors");
+
+        uint64 nowTs = uint64(block.timestamp);
+        trials[disputeId] = Trial({
+            disputeId: disputeId,
+            agreementId: agreementId,
+            partyA: partyA,
+            partyB: partyB,
+            escrowAmount: remainingEscrow,
+            tokenAddress: tokenAddress,
+            commitDeadline: nowTs + 86400,   // 24 hours commit window
+            revealDeadline: nowTs + 172800,  // 24 hours reveal window
+            state: TrialState.VOTING_COMMIT,
+            winningVerdict: 0,
+            assignedJurors: selectedJurors,
+            votesBuyer: 0,
+            votesSeller: 0
+        });
+
+        emit TrialFormed(disputeId, agreementId, selectedJurors);
+        return disputeId;
+    }
+
+    // --- Commit / Reveal Voting Engine ---
+
+    function commitVote(uint256 disputeId, bytes32 commitHash) external nonReentrant {
+        Trial storage t = trials[disputeId];
+        require(t.state == TrialState.VOTING_COMMIT, "DAX_Court: Not in commit window");
+        require(block.timestamp <= t.commitDeadline, "DAX_Court: Commit window closed");
+        require(_isJurorAssigned(disputeId, msg.sender), "DAX_Court: Caller is not an assigned juror");
+        require(commitHashes[disputeId][msg.sender] == bytes32(0), "DAX_Court: Vote already committed");
+
+        commitHashes[disputeId][msg.sender] = commitHash;
+        emit VoteCommitted(disputeId, msg.sender);
+    }
+
+    function revealVote(uint256 disputeId, uint8 verdict, bytes32 secret) external nonReentrant {
+        Trial storage t = trials[disputeId];
+        if (block.timestamp > t.commitDeadline && t.state == TrialState.VOTING_COMMIT) {
+            t.state = TrialState.VOTING_REVEAL;
+        }
+        require(t.state == TrialState.VOTING_REVEAL, "DAX_Court: Not in reveal window");
+        require(block.timestamp <= t.revealDeadline, "DAX_Court: Reveal window closed");
+        require(_isJurorAssigned(disputeId, msg.sender), "DAX_Court: Caller is not an assigned juror");
+        require(!hasRevealed[disputeId][msg.sender], "DAX_Court: Vote already revealed");
+
+        bytes32 expectedHash = keccak256(abi.encodePacked(verdict, secret, msg.sender, disputeId));
+        require(commitHashes[disputeId][msg.sender] == expectedHash, "DAX_Court: Commit hash mismatch");
+        require(verdict == BUYER_WINS || verdict == SELLER_WINS, "DAX_Court: Invalid verdict code");
+
+        hasRevealed[disputeId][msg.sender] = true;
+        revealedVotes[disputeId][msg.sender] = verdict;
+
+        if (verdict == BUYER_WINS) t.votesBuyer++;
+        else if (verdict == SELLER_WINS) t.votesSeller++;
+
+        emit VoteRevealed(disputeId, msg.sender, verdict);
+    }
+
+    // --- Jury Finalization & Slashing ---
+
+    function finalizeDispute(uint256 disputeId) external nonReentrant {
+        Trial storage t = trials[disputeId];
+        require(t.state == TrialState.VOTING_REVEAL || t.state == TrialState.VOTING_COMMIT, "DAX_Court: Invalid trial state");
+        require(block.timestamp > t.revealDeadline, "DAX_Court: Reveal window still open");
+        require(t.votesBuyer + t.votesSeller >= 3, "DAX_Court: Quorum not reached");
+
+        uint8 winning = t.votesBuyer > t.votesSeller ? BUYER_WINS : SELLER_WINS;
+
+        t.winningVerdict = winning;
+        t.state = TrialState.RESOLVED;
+
+        for (uint256 i = 0; i < t.assignedJurors.length; i++) {
+            address juror = t.assignedJurors[i];
+            if (activeTrialLocks[juror] > 0) {
+                activeTrialLocks[juror]--;
+            }
+
+            if (hasRevealed[disputeId][juror] && revealedVotes[disputeId][juror] != winning) {
+                uint256 slashAmt = (jurorStakes[juror] * slashingBps) / 10000;
+                jurorStakes[juror] -= slashAmt;
+            } else if (commitHashes[disputeId][juror] != bytes32(0) && !hasRevealed[disputeId][juror]) {
+                uint256 ghostSlash = (jurorStakes[juror] * 2000) / 10000;
+                jurorStakes[juror] -= ghostSlash;
+            }
+        }
+
+        uint256 partyAAmount = winning == BUYER_WINS ? t.escrowAmount : 0;
+        uint256 partyBAmount = winning == SELLER_WINS ? t.escrowAmount : 0;
+
+        IDAXAgreementTarget(agreementContract).resolveDispute(t.agreementId, disputeId, partyAAmount, partyBAmount);
+
+        emit TrialFinalized(disputeId, winning, partyAAmount, partyBAmount);
+    }
+
+    // --- Platform Authority Fallback ---
+
+    function resolveByPlatformAuthority(uint256 disputeId, uint8 verdict) external nonReentrant {
+        require(msg.sender == platformAuthority, "DAX_Court: Platform Authority only");
+        Trial storage t = trials[disputeId];
+        require(t.state == TrialState.VOTING_REVEAL || t.state == TrialState.VOTING_COMMIT, "DAX_Court: Invalid trial state");
+        require(block.timestamp > t.revealDeadline, "DAX_Court: Reveal window still open");
+        require(t.votesBuyer + t.votesSeller < 3, "DAX_Court: Quorum already reached");
+        require(verdict == BUYER_WINS || verdict == SELLER_WINS, "DAX_Court: Invalid verdict");
+
+        t.winningVerdict = verdict;
+        t.state = TrialState.RESOLVED;
+
+        for (uint256 i = 0; i < t.assignedJurors.length; i++) {
+            address juror = t.assignedJurors[i];
+            if (activeTrialLocks[juror] > 0) {
+                activeTrialLocks[juror]--;
+            }
+
+            if (commitHashes[disputeId][juror] != bytes32(0) && !hasRevealed[disputeId][juror]) {
+                uint256 ghostSlash = (jurorStakes[juror] * 2000) / 10000;
+                jurorStakes[juror] -= ghostSlash;
+            }
+        }
+
+        uint256 partyAAmount = verdict == BUYER_WINS ? t.escrowAmount : 0;
+        uint256 partyBAmount = verdict == SELLER_WINS ? t.escrowAmount : 0;
+
+        IDAXAgreementTarget(agreementContract).resolveDispute(t.agreementId, disputeId, partyAAmount, partyBAmount);
+
+        emit PlatformAuthorityResolved(disputeId, verdict, partyAAmount, partyBAmount);
+    }
+
+    // --- Helpers ---
+
+    function _isJurorAssigned(uint256 disputeId, address juror) internal view returns (bool) {
+        Trial storage t = trials[disputeId];
+        for (uint256 i = 0; i < t.assignedJurors.length; i++) {
+            if (t.assignedJurors[i] == juror) return true;
+        }
+        return false;
+    }
+}

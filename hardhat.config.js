@@ -1,6 +1,9 @@
 import "@nomicfoundation/hardhat-toolbox";
+import "@openzeppelin/hardhat-upgrades";
 import dotenv from "dotenv";
+import dns from "dns";
 
+dns.setDefaultResultOrder("ipv4first");
 dotenv.config();
 
 const accounts = process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [];
@@ -31,6 +34,7 @@ const config = {
       url: process.env.ARBITRUM_RPC_URL || "https://arb1.arbitrum.io/rpc",
       accounts,
       chainId: 42161,
+      timeout: 60000,
     },
     arbitrumSepolia: {
       url: process.env.ARBITRUM_SEPOLIA_RPC_URL || "https://sepolia-rollup.arbitrum.io/rpc",
