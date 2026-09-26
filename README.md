@@ -1,16 +1,20 @@
 <p align="center">
-  <img src="dax_logo.png" alt="DAX Protocol Logo" width="180" />
+  <img src="dax_banner.png" alt="DAX Protocol Banner" width="100%" />
 </p>
 
 <h1 align="center">DAX Protocol</h1>
 
 <p align="center">
-  <strong>Universal Trustless Digital Agreement & Multi-Chain Settlement Protocol</strong>
+  <strong>THE UNIVERSAL TRUST LAYER FOR AGREEMENTS</strong><br/>
+  <code>CREATE · ESCROW · EVIDENCE · RESOLVE &nbsp;|&nbsp; ARBITRUM ONE</code>
 </p>
 
 <p align="center">
-  <a href="https://basescan.org">
-    <img src="https://img.shields.io/badge/Network-Base%20%7C%20Arbitrum-blue?logo=ethereum" alt="Networks" />
+  <a href="https://arbitrum.io">
+    <img src="https://img.shields.io/badge/Network-Arbitrum%20One-blue?logo=arbitrum" alt="Arbitrum One" />
+  </a>
+  <a href="https://dax.exchange">
+    <img src="https://img.shields.io/badge/Gateway-dax.exchange-0F61FF" alt="dax.exchange" />
   </a>
   <a href="https://github.com/DAXProtocol/dax/actions">
     <img src="https://img.shields.io/badge/Tests-87%20Passing-brightgreen?logo=hardhat" alt="Tests" />
