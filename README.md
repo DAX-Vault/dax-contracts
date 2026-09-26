@@ -13,9 +13,6 @@
   <a href="https://arbitrum.io">
     <img src="https://img.shields.io/badge/Network-Arbitrum%20One-blue?logo=arbitrum" alt="Arbitrum One" />
   </a>
-  <a href="https://dax.exchange">
-    <img src="https://img.shields.io/badge/Gateway-dax.exchange-0F61FF" alt="dax.exchange" />
-  </a>
   <a href="https://github.com/DAXProtocol/dax/actions">
     <img src="https://img.shields.io/badge/Tests-87%20Passing-brightgreen?logo=hardhat" alt="Tests" />
   </a>
